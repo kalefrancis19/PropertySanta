@@ -3,14 +3,13 @@
 import { useState, useEffect } from 'react';
 import { 
   Home, 
-  Calendar, 
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  ArrowRight,
-  Plus,
+  Menu, 
+  Moon, 
+  Sun, 
+  CheckCircle, 
   FileText,
-  Activity
+  Activity,
+  Clock
 } from 'lucide-react';
 import { propertyAPI, taskAPI, Property, Task } from '@/services/api';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -31,8 +30,24 @@ export default function DashboardPage() {
         propertyAPI.getAll(),
         taskAPI.getAll()
       ]);
+      
+      console.log('Fetched properties:', propertiesData);
+      console.log('Fetched tasks:', tasksData);
+      
       setProperties(propertiesData);
       setTasks(tasksData);
+      
+      // Log property task completion status
+      propertiesData.forEach((property, index) => {
+        const completed = property.roomTasks.reduce((count, roomTask) => {
+          return count + roomTask.tasks.filter(task => task.isCompleted).length;
+        }, 0);
+        const total = property.roomTasks.reduce((count, roomTask) => {
+          return count + roomTask.tasks.length;
+        }, 0);
+        console.log(`Property ${index + 1} (${property.name}): ${completed}/${total} tasks completed`);
+      });
+      
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -40,10 +55,71 @@ export default function DashboardPage() {
     }
   };
 
-  const activeProperties = properties.filter(p => p.isActive);
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
-  const inProgressTasks = tasks.filter(t => t.status === 'in_progress');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
+
+
+  // Log the raw property data first
+  console.log('\n=== RAW PROPERTIES DATA ===');
+  console.log(JSON.stringify(properties, null, 2));
+  
+  // Process properties (no status added, we'll categorize them directly)
+  const processedProperties = [...properties];
+  
+  // Categorize properties based on room-level completion
+  // 1. Not Started: No rooms are marked as completed
+  // 2. In Progress: Some but not all rooms are completed
+  // 3. Completed: All rooms are marked as completed
+  
+  const notStartedProperties = processedProperties.filter(property => {
+    if (!property.isActive) return false;
+    
+    // Check if any room is marked as completed
+    const hasCompletedRooms = property.roomTasks.some(room => 
+      room.isCompleted
+    );
+    
+    return !hasCompletedRooms;
+  });
+  
+  const completedProperties = processedProperties.filter(property => {
+    // Check if all rooms are marked as completed
+    const allRoomsCompleted = property.roomTasks.length > 0 && 
+      property.roomTasks.every(room => room.isCompleted);
+    
+    return allRoomsCompleted;
+  });
+  
+  // In Progress properties have some but not all rooms completed
+  const inProgressProperties = processedProperties.filter(property => {
+    if (!property.isActive) return false;
+    if (notStartedProperties.includes(property) || completedProperties.includes(property)) {
+      return false;
+    }
+    
+    const hasSomeCompletedRooms = property.roomTasks.some(room => room.isCompleted);
+    
+    return hasSomeCompletedRooms;
+  });
+
+  
+  // Detailed status for each property
+  processedProperties.forEach((property: Property) => {
+    let status = 'Unknown';
+    if (notStartedProperties.includes(property as any)) {
+      status = 'Not Started';
+    } else if (inProgressProperties.includes(property as any)) {
+      status = 'In Progress';
+    } else if (completedProperties.includes(property as any)) {
+      status = 'Completed';
+    }
+    
+    property.roomTasks?.forEach((roomTask, index) => {
+      const completedTasks = roomTask.tasks?.filter(task => task.isCompleted).length || 0;
+      const totalTasks = roomTask.tasks?.length || 0;
+    });
+  });
+  
+  // Total number of properties (both active and inactive)
+  const totalProperties = processedProperties.length;
 
   if (loading) {
     return (
@@ -72,34 +148,24 @@ export default function DashboardPage() {
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">My Properties</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{activeProperties.length}</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Properties</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalProperties}</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center">
                 <Home className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
-            </div>
-            <div className="mt-2">
-              <span className="text-sm text-green-600 dark:text-green-400">
-                {activeProperties.length} active
-              </span>
             </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Cleaning Tasks</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{tasks.length}</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pending</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{notStartedProperties.length}</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center">
+                <Clock className="h-6 w-6 text-gray-600 dark:text-gray-300" />
               </div>
-            </div>
-            <div className="mt-2">
-              <span className="text-sm text-blue-600 dark:text-blue-400">
-                {pendingTasks.length} pending
-              </span>
             </div>
           </div>
 
@@ -107,16 +173,13 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">In Progress</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{inProgressTasks.length}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {inProgressProperties.length}
+                </p>
               </div>
               <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900 rounded-xl flex items-center justify-center">
                 <Activity className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
               </div>
-            </div>
-            <div className="mt-2">
-              <span className="text-sm text-yellow-600 dark:text-yellow-400">
-                {inProgressTasks.length} active
-              </span>
             </div>
           </div>
 
@@ -124,16 +187,11 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Completed</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{completedTasks.length}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{completedProperties.length}</p>
               </div>
               <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center">
                 <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
-            </div>
-            <div className="mt-2">
-              <span className="text-sm text-green-600 dark:text-green-400">
-                {completedTasks.length} done
-              </span>
             </div>
           </div>
         </div>
