@@ -84,12 +84,36 @@ export default function DashboardPage() {
           setTasks(allTasks);
 
           const grouped = groupTasksByProperty(allTasks);
+          console.log('Grouped tasks:', JSON.parse(JSON.stringify(grouped)));
+          
           const currentPropertyEntries = Object.values(grouped).filter(group => {
-            const allSubTasks = group.tasks.flatMap(t => t.roomTasks?.flatMap(rt => rt.tasks) || []);
-            const completedSubTasks = allSubTasks.filter(st => st.isCompleted).length;
-            return completedSubTasks > 0 && completedSubTasks < allSubTasks.length;
+            console.log('\n--- Checking property:', group.property.name, '---');
+            // Get all room tasks across all tasks in this property
+            const allRoomTasks = group.tasks.flatMap(t => t.roomTasks || []);
+            
+            // A room is considered completed only if it has isCompleted: true
+            const completedRooms = allRoomTasks.filter(rt => rt.isCompleted === true).length;
+            const totalRooms = allRoomTasks.length;
+            const progressPercentage = totalRooms > 0 ? Math.round((completedRooms / totalRooms) * 100) : 0;
+            
+            // Log the status for debugging
+            console.log(`Property has ${completedRooms} completed rooms out of ${totalRooms} (${progressPercentage}%)`);
+            
+            // Only show properties that are in progress (not 0% and not 100%)
+            const shouldShow = progressPercentage > 0 && progressPercentage < 100;
+            
+            if (shouldShow) {
+              console.log(`Showing property '${group.property.name}' - ${progressPercentage}% complete`);
+            } else if (progressPercentage === 0) {
+              console.log(`Hiding property '${group.property.name}' - not started (0% complete)`);
+            } else {
+              console.log(`Hiding property '${group.property.name}' - completed (100%)`);
+            }
+            
+            return shouldShow;
           });
 
+          console.log('Current properties to show:', currentPropertyEntries.map(p => p.property.name));
           setCurrentProperties(currentPropertyEntries);
 
           console.log('Tasks loaded:', allTasks);
@@ -113,27 +137,49 @@ export default function DashboardPage() {
   // Group tasks by property with property details
   const groupTasksByProperty = (tasks: any[]) => {
     const grouped: { [key: string]: { property: any; tasks: any[] } } = {};
+    
     tasks.forEach(task => {
-      const property = task.property;
-      const propertyKey = property?._id || property?.id || 'unknown';
-      const propertyName = property?.name || 'Unknown Property';
+      // Use task properties as the primary source of truth
+      const propertyKey = task.property?._id || task.property?.id || task.propertyId || 'unknown';
       
       if (!grouped[propertyKey]) {
+        // Create a new property entry using task data
         grouped[propertyKey] = {
           property: {
             id: propertyKey,
-            name: propertyName,
-            address: property?.address || task.address || 'Address not available',
-            type: property?.type || 'apartment',
-            squareFootage: property?.squareFootage || 0,
-            instructions: property?.manual?.content || '',
-            roomTasks: property?.roomTasks || []
+            // Get name from task.manual.name first, then property, then task address
+            name: task.manual?.name || 
+                 task.property?.name || 
+                 task.address || 
+                 'Unknown Property',
+            address: task.address || task.property?.address || 'Address not available',
+            // Use task type first, then property type, default to 'house'
+            type: (task.type || task.property?.type || 'Not sure').toLowerCase(),
+            squareFootage: task.squareFootage || task.property?.squareFootage || 0,
+            instructions: task.property?.manual?.content || '',
+            // Use roomTasks from task first, then from property
+            roomTasks: task.roomTasks || task.property?.roomTasks || []
           },
           tasks: []
         };
+        
+        console.log('Created property entry:', {
+          id: propertyKey,
+          name: grouped[propertyKey].property.name,
+          type: grouped[propertyKey].property.type,
+          roomTasks: grouped[propertyKey].property.roomTasks.length
+        });
       }
+      
+      // Add the task to this property
       grouped[propertyKey].tasks.push(task);
+      
+      // If this task has roomTasks and the property doesn't have any yet, use these
+      if (task.roomTasks?.length > 0 && (!grouped[propertyKey].property.roomTasks || grouped[propertyKey].property.roomTasks.length === 0)) {
+        grouped[propertyKey].property.roomTasks = task.roomTasks;
+      }
     });
+    
     return grouped;
   };
 
@@ -195,22 +241,32 @@ export default function DashboardPage() {
 
     // Group by property
     const groupedByProperty: { [key: string]: { property: any; tasks: any[] } } = {};
+    
     upcomingTasks.forEach(task => {
-      const property = task.property;
-      const propertyKey = property?._id || property?.id || 'unknown';
-      const propertyName = property?.name || 'Unknown Property';
+      // Use task properties as the primary source of truth
+      const propertyKey = task.property?._id || task.property?.id || task.propertyId || 'unknown';
       
       if (!groupedByProperty[propertyKey]) {
+        // Create a new property entry using task data
         groupedByProperty[propertyKey] = {
           property: {
             id: propertyKey,
-            name: propertyName,
-            address: property?.address || task.address || 'Address not available',
-            type: property?.type || 'apartment'
+            // Get name from task.manual.name first, then property, then task address
+            name: task.manual?.name || 
+                 task.property?.name || 
+                 task.address || 
+                 'Unknown Property',
+            address: task.address || task.property?.address || 'Address not available',
+            // Use task type first, then property type, default to 'house'
+            type: (task.type || task.property?.type || 'Not sure').toLowerCase(),
+            squareFootage: task.squareFootage || task.property?.squareFootage || 0,
+            instructions: task.property?.manual?.content || ''
           },
           tasks: []
         };
       }
+      
+      // Add the task to this property
       groupedByProperty[propertyKey].tasks.push(task);
     });
 
@@ -236,18 +292,6 @@ export default function DashboardPage() {
       pending: pendingTasks,
       completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
     };
-  };
-
-  const toggleUpcomingProperty = (propertyKey: string) => {
-    setExpandedUpcomingProperties(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(propertyKey)) {
-        newSet.delete(propertyKey);
-      } else {
-        newSet.add(propertyKey);
-      }
-      return newSet;
-    });
   };
 
   return (
@@ -301,8 +345,11 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">Total Tasks</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{tasks.length}</p>
-                <p className="text-blue-500 text-xs font-medium">Across all properties</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {Object.values(groupedTasks).reduce((total, group) => 
+                    total + (group.tasks.flatMap(t => t.roomTasks || []).length), 0)}
+                </p>
+                <p className="text-blue-500 text-xs font-medium">Rooms across all properties</p>
               </div>
               <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
                 <List className="w-7 h-7 text-white" />
@@ -331,11 +378,11 @@ export default function DashboardPage() {
                 const propertyId = property.id;
                 const isExpanded = expandedCurrentProperties.has(propertyId);
                 
-                // Calculate progress
-                const allSubTasks = tasks.flatMap(t => t.roomTasks?.flatMap(rt => rt.tasks) || []);
-                const completedSubTasks = allSubTasks.filter(st => st.isCompleted).length;
-                const totalSubTasks = allSubTasks.length;
-                const progressPercentage = totalSubTasks > 0 ? Math.round((completedSubTasks / totalSubTasks) * 100) : 0;
+                // Calculate progress based on room completion
+                const allRooms = tasks.flatMap(t => t.roomTasks || []);
+                const completedRooms = allRooms.filter(rt => rt.isCompleted === true).length;
+                const totalRooms = allRooms.length;
+                const progressPercentage = totalRooms > 0 ? Math.round((completedRooms / totalRooms) * 100) : 0;
                 
                 return (
                   <div key={propertyId} className="bg-white/80 dark:bg-gray-800/80 rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/50 shadow-md hover:shadow-lg transition-all duration-200">
@@ -375,7 +422,7 @@ export default function DashboardPage() {
                             <span className="text-xs font-medium capitalize">{property.type}</span>
                           </span>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {completedSubTasks}/{totalSubTasks} tasks done
+                            {completedRooms}/{totalRooms} {totalRooms === 1 ? 'room' : 'rooms'} done
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -390,39 +437,6 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </div>
-                    {isExpanded && (
-                      <div className="space-y-2 mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50 animate-slide-down">
-                        {tasks.map((task, taskIndex) => {
-                          const roomTasks = task.roomTasks || [];
-                          return (
-                            <div key={task._id || task.id || taskIndex} className="bg-gray-50/80 dark:bg-gray-900/50 rounded-lg p-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <h6 className="font-semibold text-gray-800 dark:text-gray-200 text-sm">
-                                  {task.title || task.roomType || 'Room Task'}
-                                </h6>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium shadow-sm ${getStatusColor(task.status)}`}>
-                                  {task.status?.replace('_', ' ') || 'pending'}
-                                </span>
-                              </div>
-                              {roomTasks.length > 0 && (
-                                <div className="space-y-1 ml-2">
-                                  {roomTasks.map((roomTask, roomIndex) => (
-                                    <div key={roomIndex} className="flex items-center justify-between text-xs">
-                                      <span className="text-gray-600 dark:text-gray-400">
-                                        {roomTask.roomType} - {roomTask.tasks?.length || 0} subtasks
-                                      </span>
-                                      <span className="text-gray-500 dark:text-gray-500">
-                                        {roomTask.tasks?.filter(t => t.isCompleted).length || 0}/{roomTask.tasks?.length || 0} done
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -469,7 +483,6 @@ export default function DashboardPage() {
                     <div key={propertyKey} className="bg-white rounded-xl p-4 border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] animate-slide-up">
                       <div 
                         className="flex items-center justify-between mb-3 cursor-pointer hover:bg-gray-50 rounded-lg p-3 transition-all duration-300"
-                        onClick={() => toggleUpcomingProperty(propertyKey)}
                       >
                         <div className="flex-1">
                           <h2 className="font-bold text-blue-900 text-lg">
@@ -479,6 +492,20 @@ export default function DashboardPage() {
                             <MapPin className="w-3 h-3 mr-1 text-blue-500" />
                             {property.address}
                           </p>
+                          {earliestTask && new Date(earliestTask.scheduledTime) > new Date() && (
+                            <div className="flex items-center space-x-1 text-xs text-gray-500 mt-1">
+                              <Calendar className="w-3.5 h-3.5 mr-0.5" />
+                              <span>
+                                {new Date(earliestTask.scheduledTime).toLocaleString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-300 text-sm mt-2">
                             <div className={`${getPropertyTypeColor(property.type)} flex items-center space-x-1`}>
                               {getPropertyTypeIcon(property.type)}
@@ -489,14 +516,6 @@ export default function DashboardPage() {
                               <Ruler className="w-4 h-4" />
                               <span>{property.squareFootage} sqft</span>
                             </div>
-                          </div>
-                        </div>
-                        <div className="text-right flex items-center space-x-3">
-                          <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                            {propertyTasks.length} task{propertyTasks.length > 1 ? 's' : ''}
-                          </span>
-                          <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center text-blue-600 text-xs font-bold transition-transform duration-300">
-                            {expandedUpcomingProperties.has(propertyKey) ? '▼' : '▶'}
                           </div>
                         </div>
                       </div>
