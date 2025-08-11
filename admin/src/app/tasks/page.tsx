@@ -401,13 +401,13 @@ export default function TasksPage() {
             {/* Search */}
             <div className="relative">
               <label htmlFor="search" className="sr-only">Search properties</label>
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" aria-hidden="true" />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none dark:text-white">
+                <Search className="h-4 w-4 text-gray-500 dark:text-white" aria-hidden="true" />
               </div>
               <input
                 id="search"
                 type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-800 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                 placeholder="Search properties..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

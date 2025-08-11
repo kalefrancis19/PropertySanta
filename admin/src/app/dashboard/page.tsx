@@ -11,12 +11,11 @@ import {
   Activity,
   Clock
 } from 'lucide-react';
-import { propertyAPI, taskAPI, Property, Task } from '@/services/api';
+import { propertyAPI, Property } from '@/services/api';
 import DashboardLayout from '@/components/DashboardLayout';
 
 export default function DashboardPage() {
   const [properties, setProperties] = useState<Property[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,16 +25,12 @@ export default function DashboardPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [propertiesData, tasksData] = await Promise.all([
-        propertyAPI.getAll(),
-        taskAPI.getAll()
-      ]);
+      // Only fetch properties, not tasks
+      const propertiesData = await propertyAPI.getAll();
       
       console.log('Fetched properties:', propertiesData);
-      console.log('Fetched tasks:', tasksData);
       
       setProperties(propertiesData);
-      setTasks(tasksData);
       
       // Log property task completion status
       propertiesData.forEach((property, index) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   FileText, 
   Calendar, 
@@ -13,10 +13,26 @@ import {
   Share,
   Filter,
   Sun,
-  Moon
+  Moon,
+  Clock,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import DashboardLayout from '@/components/DashboardLayout';
+import { propertyAPI, Property } from '@/services/api';
+
+// Extend the Property interface to include issues
+interface PropertyWithIssues extends Omit<Property, 'issues'> {
+  issues?: Array<{
+    _id: string;
+    description: string;
+    status: 'open' | 'in_progress' | 'resolved';
+    createdAt: string;
+    updatedAt: string;
+  }>;
+}
+import { format } from 'date-fns';
 
 interface CleaningReport {
   id: string;
@@ -30,57 +46,81 @@ interface CleaningReport {
   issues: string[];
   notes: string;
   status: 'completed' | 'in-progress' | 'scheduled';
+  lastCleaned?: string;
+  nextCleaning?: string;
+  progress?: number;
 }
 
 export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState<CleaningReport | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [properties, setProperties] = useState<PropertyWithIssues[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
 
-  const reports: CleaningReport[] = [
-    {
-      id: '1',
-      date: '2024-04-18',
-      cleaner: 'Logan T.',
-      property: '123 Main St',
-      duration: '2.5 hours',
-      rating: 4.5,
-      photos: 8,
-      rooms: ['Living Room', 'Kitchen', 'Bathroom', 'Bedroom'],
-      issues: ['Minor stain on carpet', 'Dust on ceiling fan'],
-      notes: 'Overall excellent cleaning. Kitchen surfaces spotless. Bathroom fixtures polished. Minor attention needed for carpet stain in living room. Ceiling fan needs dusting.',
-      status: 'completed'
-    },
-    {
-      id: '2',
-      date: '2024-04-11',
-      cleaner: 'Sarah M.',
-      property: '123 Main St',
-      duration: '2.0 hours',
-      rating: 5.0,
-      photos: 6,
-      rooms: ['Living Room', 'Kitchen', 'Bathroom', 'Bedroom'],
-      issues: [],
-      notes: 'Perfect cleaning service. All areas thoroughly cleaned and sanitized. No issues found.',
-      status: 'completed'
-    },
-    {
-      id: '3',
-      date: '2024-04-04',
-      cleaner: 'Mike R.',
-      property: '123 Main St',
-      duration: '2.3 hours',
-      rating: 4.0,
-      photos: 7,
-      rooms: ['Living Room', 'Kitchen', 'Bathroom', 'Bedroom'],
-      issues: ['Light dust on shelves', 'Kitchen counter needs attention'],
-      notes: 'Good cleaning service. Minor dust accumulation on shelves. Kitchen counter could use more attention.',
-      status: 'completed'
-    }
-  ];
+  // Fetch properties on component mount
+  useEffect(() => {
+    const fetchProperties = async () => {
+      try {
+        setLoading(true);
+        const data = await propertyAPI.getAll();
+        setProperties(data);
+      } catch (err) {
+        setError('Failed to load properties. Please try again later.');
+        console.error('Error fetching properties:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperties();
+  }, []);
+
+  // Transform properties to reports format
+  const reports = useMemo<CleaningReport[]>(() => {
+    return properties.map((property: PropertyWithIssues) => {
+      // Calculate completion stats
+      const roomTasks = property.roomTasks || [];
+      const totalTasks = roomTasks.reduce((sum: number, room) => sum + (room.tasks?.length || 0), 0);
+      const completedTasks = roomTasks.reduce(
+        (sum: number, room) => sum + (room.tasks?.filter((t: { isCompleted: boolean }) => t.isCompleted)?.length || 0),
+        0
+      );
+      const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      
+      // Determine status based on progress
+      let status: 'completed' | 'in-progress' | 'scheduled' = 'scheduled';
+      if (progress > 0) status = 'in-progress';
+      if (progress >= 100) status = 'completed';
+
+      // Create a report for each property
+      return {
+        id: property._id || '',
+        date: property.updatedAt ? format(new Date(property.updatedAt), 'yyyy-MM-dd') : 'N/A',
+        cleaner: property.owner?.name || 'Not assigned',
+        property: property.name || property.propertyId || 'Unnamed Property',
+        duration: property.estimatedTime || 'N/A',
+        rating: 4.5, // Default rating, can be enhanced with actual ratings if available
+        photos: 0, // Can be enhanced with actual photos if available
+        rooms: roomTasks.map((room: { roomType: string }) => room.roomType),
+        issues: property.issues?.map((issue: { description: string }) => issue.description) || [],
+        notes: property.instructions || 'No additional notes.',
+        status,
+        lastCleaned: property.updatedAt ? format(new Date(property.updatedAt), 'MMM d, yyyy') : 'Never',
+        nextCleaning: property.updatedAt 
+          ? format(new Date(new Date(property.updatedAt).setDate(new Date(property.updatedAt).getDate() + 7)), 'MMM d, yyyy')
+          : 'Not scheduled',
+        progress
+      };
+    });
+  }, [properties]);
 
   const filteredReports = reports.filter(report => 
-    filterStatus === 'all' || report.status === filterStatus
+    filterStatus === 'all' || 
+    (filterStatus === 'completed' && report.status === 'completed') ||
+    (filterStatus === 'in-progress' && report.status === 'in-progress') ||
+    (filterStatus === 'scheduled' && report.status === 'scheduled')
   );
 
   return (
