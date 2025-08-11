@@ -155,8 +155,16 @@ export default function PropertiesPage() {
             <div key={property._id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{property.name}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{property.address}</p>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{property.name}</h3>
+                  </div>
+                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                      {property.propertyId}
+                  </span>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center mt-1">
+                    <MapPin className="h-3.5 w-3.5 mr-1" />
+                    {property.address}
+                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -173,21 +181,21 @@ export default function PropertiesPage() {
               </div>
 
               <div className="space-y-3 mb-4">
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <Building className="h-4 w-4 mr-2" />
-                  <span>{property.type}</span>
-                </div>
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <Home className="h-4 w-4 mr-2" />
-                  <span>{property.rooms} rooms, {property.bathrooms} bathrooms</span>
-                </div>
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <Square className="h-4 w-4 mr-2" />
-                  <span>{property.squareFootage} sq ft</span>
-                </div>
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <Clock className="h-4 w-4 mr-2" />
-                  <span>{property.estimatedTime}</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Property Type</p>
+                    <div className="flex items-center text-sm font-medium text-gray-900 dark:text-white">
+                      <Building className="h-4 w-4 mr-2 text-primary-600 dark:text-primary-400" />
+                      <span>{property.type || 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Size</p>
+                    <div className="flex items-center text-sm font-medium text-gray-900 dark:text-white">
+                      <Square className="h-4 w-4 mr-2 text-primary-600 dark:text-primary-400" />
+                      <span>{property.squareFootage ? `${property.squareFootage} sq ft` : 'N/A'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -280,34 +288,39 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
     name: '',
     address: '',
     type: 'apartment' as 'apartment' | 'house' | 'office',
-    rooms: '',
-    bathrooms: '',
     squareFootage: '',
-    estimatedTime: '',
-    instructions: '',
-    specialRequirements: '',
-    owner: 'John Smith'
+    rooms: '1',
+    bathrooms: '1',
+    estimatedTime: '60', // in minutes
+    manual: {
+      title: 'Live Cleaning & Maintenance Manual',
+      content: ''
+    },
+    roomTasks: []
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd({
-      ...formData,
-      rooms: parseInt(formData.rooms),
-      bathrooms: parseInt(formData.bathrooms),
-      squareFootage: parseInt(formData.squareFootage),
+    
+    // Prepare the property data with all required fields
+    const propertyData: CreatePropertyRequest = {
+      propertyId: formData.propertyId,
+      name: formData.name,
+      address: formData.address,
+      type: formData.type,
+      squareFootage: parseInt(formData.squareFootage) || 0,
+      rooms: parseInt(formData.rooms) || 1,
+      bathrooms: parseInt(formData.bathrooms) || 1,
+      estimatedTime: `${formData.estimatedTime} minutes`,
       manual: {
-        title: 'Live Cleaning & Maintenance Manual',
-        content: `Live Cleaning & Maintenance Manual\n${formData.address}\nProperty Overview\n- Property ID: ${formData.propertyId}\n- Type: ${formData.type}\n- Square Footage: ${formData.squareFootage} sq ft\n- Estimated Time: ${formData.estimatedTime}`
+        ...formData.manual,
+        content: formData.manual.content || `Live Cleaning & Maintenance Manual\n${formData.address}\nProperty Overview\n- Property ID: ${formData.propertyId}\n- Type: ${formData.type}\n- Square Footage: ${formData.squareFootage} sq ft`
       },
-      roomTasks: [],
-      specialRequirements: [],
-      owner: {
-        name: formData.owner,
-        email: 'john@example.com',
-        phone: '+1234567890'
-      }
-    });
+      roomTasks: []
+    };
+    
+    console.log('Submitting property data:', propertyData);
+    onAdd(propertyData);
   };
 
   return (
@@ -316,21 +329,21 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Add Property</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Property ID</label>
-            <input
-              type="text"
-              value={formData.propertyId}
-              onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              required
-            />
-          </div>
-          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Property ID</label>
+            <input
+              type="text"
+              value={formData.propertyId}
+              onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               required
             />
@@ -359,40 +372,7 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estimated Time</label>
-              <input
-                type="text"
-                value={formData.estimatedTime}
-                onChange={(e) => setFormData({ ...formData, estimatedTime: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder="2 hours"
-                required
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rooms</label>
-              <input
-                type="number"
-                value={formData.rooms}
-                onChange={(e) => setFormData({ ...formData, rooms: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bathrooms</label>
-              <input
-                type="number"
-                value={formData.bathrooms}
-                onChange={(e) => setFormData({ ...formData, bathrooms: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sq Ft</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Square Footage</label>
               <input
                 type="number"
                 value={formData.squareFootage}
@@ -425,25 +405,26 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
 
 function EditPropertyModal({ property, onClose, onEdit }: { property: Property; onClose: () => void; onEdit: (id: string, data: UpdatePropertyRequest) => void }) {
   const [formData, setFormData] = useState({
-    name: property.name,
-    address: property.address,
-    type: property.type,
-    rooms: property.rooms.toString(),
-    bathrooms: property.bathrooms.toString(),
-    squareFootage: property.squareFootage.toString(),
-    estimatedTime: property.estimatedTime,
-    instructions: property.instructions || '',
-    specialRequirements: property.specialRequirements || ''
+    name: property?.name || '',
+    propertyId: property?.propertyId || '',
+    address: property?.address || '',
+    type: property?.type || 'apartment',
+    squareFootage: property?.squareFootage?.toString() || '0',
+    instructions: property?.instructions || '',
+    specialRequirements: property?.specialRequirements || ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onEdit(property._id!, {
+    if (!property?._id) return;
+    
+    onEdit(property._id, {
       ...formData,
-      rooms: parseInt(formData.rooms),
-      bathrooms: parseInt(formData.bathrooms),
-      squareFootage: parseInt(formData.squareFootage),
-      specialRequirements: typeof formData.specialRequirements === 'string' ? [formData.specialRequirements] : formData.specialRequirements
+      propertyId: formData.propertyId,
+      squareFootage: parseInt(formData.squareFootage) || 0,
+      specialRequirements: formData.specialRequirements ? 
+        (typeof formData.specialRequirements === 'string' ? [formData.specialRequirements] : formData.specialRequirements) : 
+        []
     });
   };
 
@@ -458,6 +439,16 @@ function EditPropertyModal({ property, onClose, onEdit }: { property: Property; 
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Property ID</label>
+            <input
+              type="text"
+              value={formData.propertyId}
+              onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               required
             />
@@ -486,39 +477,7 @@ function EditPropertyModal({ property, onClose, onEdit }: { property: Property; 
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estimated Time</label>
-              <input
-                type="text"
-                value={formData.estimatedTime}
-                onChange={(e) => setFormData({ ...formData, estimatedTime: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rooms</label>
-              <input
-                type="number"
-                value={formData.rooms}
-                onChange={(e) => setFormData({ ...formData, rooms: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bathrooms</label>
-              <input
-                type="number"
-                value={formData.bathrooms}
-                onChange={(e) => setFormData({ ...formData, bathrooms: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sq Ft</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Square Footage</label>
               <input
                 type="number"
                 value={formData.squareFootage}
