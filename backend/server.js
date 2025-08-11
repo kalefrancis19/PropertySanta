@@ -210,22 +210,19 @@ const initializeDatabase = async () => {
       },
       roomTasks: [
         {
-          roomType: 'Kitchen',
+          roomType: 'bedroom',
           tasks: [
-            { description: 'Clean countertops'},
-            { description: 'Wipe down appliances'},
-            { description: 'Clean sink'}
+            { description: 'make the bed'},
+            { description: 'Clean floor'}
           ],
           estimatedTime: '45 minutes',
           specialInstructions: ['Use granite-safe cleaner only.'],
           isCompleted: false
         },
         {
-          roomType: 'Master Bathroom',
+          roomType: 'bathroom',
           tasks: [
-            { description: 'Clean mirror'},
-            { description: 'Scrub shower grout'},
-            { description: 'Restock towels and soap'}
+            { description: 'clean the floor'},
           ],
           estimatedTime: '30 minutes',
           specialInstructions: ['Grout needs extra attention this week.'],
@@ -236,25 +233,8 @@ const initializeDatabase = async () => {
       customer: customer._id,
       assignedTo: cleaner._id,
       photos: [
-        {
-          url: 'https://example.com/photos/before_kitchen.jpg',
-          type: 'before',
-          notes: 'Kitchen before cleaning.',
-        },
-        {
-          url: 'https://example.com/photos/after_kitchen.jpg',
-          type: 'after',
-          notes: 'Kitchen after cleaning.',
-        },
       ],
       issues: [
-        {
-          type: 'stain',
-          description: 'Faint red wine stain on living room carpet.',
-          location: 'Living Room',
-          notes: 'Attempted to remove with standard cleaner, but it remains.',
-          isResolved: false,
-        },
       ],
       aiFeedback: [], // Initially empty
       isActive: true,
