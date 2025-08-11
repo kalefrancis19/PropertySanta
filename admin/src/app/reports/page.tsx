@@ -217,11 +217,12 @@ export default function ReportsPage() {
         const report: CleaningReport = {
           id: property._id || '',
           date: property.updatedAt ? format(new Date(property.updatedAt), 'yyyy-MM-dd') : 'N/A',
-          cleaner: property.owner?.name || 'Not assigned',
+          cleaner: property.assignedTo  || 'Not assigned',
           property: property.name || property.propertyId || 'Unnamed Property',
           duration: totalMinutes > 0 ? formatMinutes(totalMinutes) : 'N/A',
           rating: rating,
           photos: property.photos?.length || 0,
+          uploadedPhotos: property.photos,
           rooms: roomTasks.map((room: { roomType: string }) => room.roomType),
           issues: property.issues?.map(
             (issue: { description: string; location?: string; type?: string }) =>
@@ -453,14 +454,32 @@ export default function ReportsPage() {
 
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Photos</h3>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                            <Camera className="h-8 w-8 text-gray-400 dark:text-gray-500" />
-                          </div>
-                          <div className="aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                            <Camera className="h-8 w-8 text-gray-400 dark:text-gray-500" />
-                          </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          {selectedReport.uploadedPhotos.map((photo, index) => (
+                            <div
+                              key={index}
+                              className="relative bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+                              title={photo.type || "Uploaded photo"}
+                            >
+                              <img
+                                src={photo.url}
+                                alt={photo.type || "Uploaded photo"}
+                                className="w-full aspect-square object-cover rounded-md"
+                              />
+                              <span 
+                                className={`absolute bottom-0 right-0 px-2 py-1 rounded-sm text-xs font-small text-white ${
+                                  photo.type?.toLowerCase() === 'before' 
+                                    ? 'bg-gray-500' 
+                                    : 'bg-green-500'
+                                }`}
+                              >
+                                {photo.type || "No type"}
+                              </span>
+                            </div>
+                          ))}
                         </div>
+
                       </div>
                     </div>
                   </div>
