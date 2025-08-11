@@ -212,7 +212,7 @@ export interface Task {
 export const taskAPI = {
   getAll: async (): Promise<Task[]> => {
     try {
-      const response = await api.get('/tasks/admin');
+      const response = await api.get('/tasks');
       return response.data.tasks || [];
     } catch (error) {
       console.error('Error fetching tasks:', error);

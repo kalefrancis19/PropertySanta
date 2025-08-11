@@ -46,18 +46,18 @@ const getTasks = async (req, res) => {
   try {
     // Find properties assigned to this user
     const properties = await Property.find({ assignedTo: req.user.userId });
-    // const userRoomTasks = [];
-    // properties.forEach(prop => {
-    //   prop.roomTasks.forEach((roomTask, idx) => {
-    //     userRoomTasks.push({
-    //       propertyId: prop._id,
-    //       propertyName: prop.name,
-    //       address: prop.address,
-    //       roomTaskIndex: idx,
-    //       ...roomTask.toObject()
-    //     });
-    //   });
-    // });
+    const userRoomTasks = [];
+    properties.forEach(prop => {
+      prop.roomTasks.forEach((roomTask, idx) => {
+        userRoomTasks.push({
+          propertyId: prop._id,
+          propertyName: prop.name,
+          address: prop.address,
+          roomTaskIndex: idx,
+          ...roomTask.toObject()
+        });
+      });
+    });
 
     res.json({
       success: true,

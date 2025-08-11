@@ -137,12 +137,10 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-primary-500 to-blue-600 rounded-xl p-6 text-white">
-          <h1 className="text-2xl font-bold mb-2">Welcome back, John! 👋</h1>
-          <p className="text-primary-100">Here's what's happening with your properties today.</p>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Customer Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400">Overview of cleaning progress and schedules</p>
         </div>
-
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">

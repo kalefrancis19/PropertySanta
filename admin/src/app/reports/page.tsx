@@ -16,6 +16,7 @@ import {
   Moon
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import DashboardLayout from '@/components/DashboardLayout';
 
 interface CleaningReport {
   id: string;
@@ -83,56 +84,28 @@ export default function ReportsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => window.history.back()}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </button>
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-xl flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-                </div>
-                <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent">Cleaning Reports</span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={toggleTheme}
-                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                {theme === 'light' ? (
-                  <Moon className="h-5 w-5" />
-                ) : (
-                  <Sun className="h-5 w-5" />
-                )}
-              </button>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="all">All Reports</option>
-                <option value="completed">Completed</option>
-                <option value="in-progress">In Progress</option>
-                <option value="scheduled">Scheduled</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </header>
+    <DashboardLayout>
+    <div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Cleaning Reports</h1>
+      <p className="text-gray-600 dark:text-gray-400">Analysis of cleaning progress and schedules</p>
+    </div>
 
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex justify-end px-10">
+      <select
+        value={filterStatus}
+        onChange={(e) => setFilterStatus(e.target.value)}
+        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+        >
+        <option value="all">All Reports</option>
+        <option value="completed">Completed</option>
+        <option value="in-progress">In Progress</option>
+        <option value="scheduled">Scheduled</option>
+      </select>
+      </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Reports List */}
           <div className="lg:col-span-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Reports</h2>
             <div className="space-y-3">
               {filteredReports.map((report) => (
                 <div
@@ -298,5 +271,6 @@ export default function ReportsPage() {
         </div>
       </div>
     </div>
+  </DashboardLayout>
   );
 } 
