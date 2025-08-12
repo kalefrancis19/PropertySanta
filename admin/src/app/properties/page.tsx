@@ -6,16 +6,13 @@ import {
   Edit, 
   Trash2, 
   FileText, 
-  CheckCircle, 
-  XCircle,
   Home,
   MapPin,
-  Users,
-  Clock,
   Square,
   Building
 } from 'lucide-react';
-import { propertyAPI, Property, CreatePropertyRequest, UpdatePropertyRequest } from '@/services/api';
+import Link from 'next/link';
+import { propertyAPI, Property, CreatePropertyRequest } from '@/services/api';
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 
@@ -23,9 +20,9 @@ export default function PropertiesPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+
   const [showManualModal, setShowManualModal] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null); // Still needed for manual edit modal
   const [editingManual, setEditingManual] = useState({ title: '', content: '' });
 
   useEffect(() => {
@@ -54,19 +51,6 @@ export default function PropertiesPage() {
     } catch (error) {
       console.error('Error adding property:', error);
       toast.error('Failed to add property');
-    }
-  };
-
-  const handleEditProperty = async (id: string, propertyData: UpdatePropertyRequest) => {
-    try {
-      await propertyAPI.update(id, propertyData);
-      toast.success('Property updated successfully');
-      setShowEditModal(false);
-      setSelectedProperty(null);
-      fetchProperties();
-    } catch (error) {
-      console.error('Error updating property:', error);
-      toast.error('Failed to update property');
     }
   };
 
@@ -208,15 +192,12 @@ export default function PropertiesPage() {
                   <span>Manual</span>
                 </button>
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => {
-                      setSelectedProperty(property);
-                      setShowEditModal(true);
-                    }}
+                  <Link 
+                    href={`/properties/${property._id}`}
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
                     <Edit className="h-4 w-4" />
-                  </button>
+                  </Link>
                   <button
                     onClick={() => handleDeleteProperty(property._id!)}
                     className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
@@ -253,17 +234,7 @@ export default function PropertiesPage() {
         />
       )}
 
-      {/* Edit Property Modal */}
-      {showEditModal && selectedProperty && (
-        <EditPropertyModal
-          property={selectedProperty}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedProperty(null);
-          }}
-          onEdit={handleEditProperty}
-        />
-      )}
+
 
       {/* Manual Edit Modal */}
       {showManualModal && selectedProperty && (
@@ -403,110 +374,7 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
   );
 }
 
-function EditPropertyModal({ property, onClose, onEdit }: { property: Property; onClose: () => void; onEdit: (id: string, data: UpdatePropertyRequest) => void }) {
-  const [formData, setFormData] = useState({
-    name: property?.name || '',
-    propertyId: property?.propertyId || '',
-    address: property?.address || '',
-    type: property?.type || 'apartment',
-    squareFootage: property?.squareFootage?.toString() || '0',
-    instructions: property?.instructions || '',
-    specialRequirements: property?.specialRequirements || ''
-  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!property?._id) return;
-    
-    onEdit(property._id, {
-      ...formData,
-      propertyId: formData.propertyId,
-      squareFootage: parseInt(formData.squareFootage) || 0,
-      specialRequirements: formData.specialRequirements ? 
-        (typeof formData.specialRequirements === 'string' ? [formData.specialRequirements] : formData.specialRequirements) : 
-        []
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Edit Property</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Property ID</label>
-            <input
-              type="text"
-              value={formData.propertyId}
-              onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
-            <input
-              type="text"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              required
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as 'apartment' | 'house' | 'office' })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="apartment">Apartment</option>
-                <option value="house">House</option>
-                <option value="office">Office</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Square Footage</label>
-              <input
-                type="number"
-                value={formData.squareFootage}
-                onChange={(e) => setFormData({ ...formData, squareFootage: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-          </div>
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg"
-            >
-              Update Property
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 function ManualEditModal({ manual, onClose, onSave, onChange }: { 
   manual: { title: string; content: string }; 

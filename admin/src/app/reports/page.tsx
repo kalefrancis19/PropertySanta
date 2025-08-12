@@ -229,7 +229,7 @@ export default function ReportsPage() {
           rooms: roomTasks.map((room: { roomType: string }) => room.roomType),
           issues: property.issues?.map(
             (issue: { description: string; location?: string; type?: string }) =>
-              `${issue.location ? `In ${issue.location}, ` : ''}${issue.type ? `${issue.type} : ` : ''} ${issue.description}\n${issue.description}`
+              `${issue.location ? `In ${issue.location}, ` : ''}${issue.type ? `${issue.type} : ` : ''} ${issue.description}`
           ) || [],
           roomFeedbacks,
           notes: property.instructions || 'No additional notes.',
@@ -486,7 +486,7 @@ export default function ReportsPage() {
                                   </div>
                                 </div>
                                 <span 
-                                  className={`absolute bottom-0 right-0 w-20 px-2 py-1 text-sm text-center font-semibold text-white ${
+                                  className={`absolute bottom-0 right-0 w-20 px-2 py-1 text-sm text-center text-white ${
                                     photo.type?.toLowerCase() === 'before' 
                                       ? 'bg-gray-500' 
                                       : 'bg-green-600'
