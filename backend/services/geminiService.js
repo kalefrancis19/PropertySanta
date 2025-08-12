@@ -357,6 +357,7 @@ class GeminiService {
                 score: scorePercentage,
                 confidence: scoring.confidence || 0.8,
                 suggestions: scoring.recommendations || [],
+                improvements: scoring.improvements || [],
                 timestamp: new Date(),
                 roomType: detectedRoomType,
                 analysisType: 'after_cleaning'

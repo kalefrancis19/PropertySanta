@@ -26,6 +26,7 @@ interface PropertyWithIssues extends Omit<Property, 'issues' | 'aiFeedback' | 'p
   }>;
   aiFeedback?: Array<{
     feedback: string;
+    improvements: string[];
     confidence: number;
     suggestions: string[];
     _id: string;
@@ -208,6 +209,7 @@ export default function ReportsPage() {
                 roomType,
                 score,
                 feedback: fb.feedback,
+                improvements: fb.improvements || [],
                 suggestions: fb.suggestions || [],
                 confidence: fb.confidence || 0
               });
@@ -398,24 +400,30 @@ export default function ReportsPage() {
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">AI Cleaning Analysis</h3>
                             <div className="space-y-4">
                               {selectedReport.roomFeedbacks.map((feedback, index) => (
-                                <div key={index} className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                                <div key={index} className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                                   <div className="flex justify-between items-start">
-                                    <h4 className="font-medium text-blue-800 dark:text-blue-200">
+                                    <h4 className="font-medium text-green-800 dark:text-green-200">
                                       {feedback.roomType} - {feedback.score}%
                                     </h4>
-                                    <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200 rounded-full">
-                                      {Math.round(feedback.confidence * 100)}% confidence
-                                    </span>
                                   </div>
-                                  <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
-                                    {feedback.feedback}
-                                  </p>
+                                  {feedback.improvements.length > 0 && (
+                                    <div className="mt-3">
+                                      <h5 className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
+                                        improvements:
+                                      </h5>
+                                      <ul className="list-disc list-inside text-sm text-green-700 dark:text-green-300 space-y-1">
+                                        {feedback.improvements.map((improvement, idx) => (
+                                          <li key={idx}>{improvement}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
                                   {feedback.suggestions.length > 0 && (
                                     <div className="mt-3">
-                                      <h5 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
+                                      <h5 className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
                                         Suggestions for improvement:
                                       </h5>
-                                      <ul className="list-disc list-inside text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                                      <ul className="list-disc list-inside text-sm text-green-700 dark:text-green-300 space-y-1">
                                         {feedback.suggestions.map((suggestion, idx) => (
                                           <li key={idx}>{suggestion}</li>
                                         ))}
@@ -478,7 +486,7 @@ export default function ReportsPage() {
                                   </div>
                                 </div>
                                 <span 
-                                  className={`absolute bottom-2 right-2 px-2 py-1 rounded-sm text-xs font-semibold text-white ${
+                                  className={`absolute bottom-0 right-0 w-20 px-2 py-1 text-sm text-center font-semibold text-white ${
                                     photo.type?.toLowerCase() === 'before' 
                                       ? 'bg-gray-500' 
                                       : 'bg-green-600'

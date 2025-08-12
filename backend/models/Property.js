@@ -80,6 +80,8 @@ const aiFeedbackSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  improvements: [String],
+
   confidence: {
     type: Number,
     min: 0,
