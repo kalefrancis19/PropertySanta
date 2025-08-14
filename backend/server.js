@@ -1,10 +1,11 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const net = require('net');
+const bcrypt = require('bcryptjs');
 require('dotenv').config({ path: './config.env' });
+const { db } = require('./config/firebase');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -21,14 +22,13 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Health check endpoint
+// Health check
 app.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -38,22 +38,14 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Debug endpoint to check properties
+// Debug endpoint
 app.get('/debug/properties', async (req, res) => {
   try {
-    const Property = require('./models/Property');
-    const properties = await Property.find({});
-    res.json({
-      success: true,
-      count: properties.length,
-      properties: properties
-    });
+    const snapshot = await db.collection('properties').get();
+    const properties = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ success: true, count: properties.length, properties });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 
@@ -63,60 +55,39 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/properties', propertyRoutes);
 
-// Function to find available port
+// Find available port
 const findAvailablePort = async (startPort) => {
   const port = parseInt(startPort);
-  if (isNaN(port) || port < 0 || port > 65535) {
-    throw new Error(`Invalid port number: ${startPort}`);
-  }
-  
+  if (isNaN(port) || port < 0 || port > 65535) throw new Error(`Invalid port number: ${startPort}`);
+
   return new Promise((resolve, reject) => {
     const server = net.createServer();
-
     server.listen(port, () => {
       const { port: actualPort } = server.address();
       server.close(() => resolve(actualPort));
     });
-
     server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        server.close();
-        findAvailablePort(port + 1).then(resolve).catch(reject);
-      } else {
-        reject(err);
-      }
+      if (err.code === 'EADDRINUSE') findAvailablePort(port + 1).then(resolve).catch(reject);
+      else reject(err);
     });
   });
 };
 
-// Function to update frontend environment files
+// Update frontend .env
 const updateFrontendEnv = (port) => {
   const apiUrl = `http://localhost:${port}/api`;
-  
-  // Update both frontend environment files
   const frontendPaths = [
-    path.join(__dirname, '..', 'cleaner', '.env.local'), // Cleaner App
-    path.join(__dirname, '..', 'admin', '.env.local')   // Admin App
+    path.join(__dirname, '..', 'cleaner', '.env.local'),
+    path.join(__dirname, '..', 'admin', '.env.local')
   ];
 
   frontendPaths.forEach((envPath) => {
     try {
-      let envContent = '';
-      if (fs.existsSync(envPath)) {
-        envContent = fs.readFileSync(envPath, 'utf8');
-      }
-
+      let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
       const apiUrlLine = `NEXT_PUBLIC_API_URL=${apiUrl}`;
-
-      if (envContent.includes('NEXT_PUBLIC_API_URL=')) {
-        envContent = envContent.replace(
-          /NEXT_PUBLIC_API_URL=.*/g,
-          apiUrlLine
-        );
-      } else {
-        envContent += `\n${apiUrlLine}`;
-      }
-
+      envContent = envContent.includes('NEXT_PUBLIC_API_URL=') 
+        ? envContent.replace(/NEXT_PUBLIC_API_URL=.*/g, apiUrlLine)
+        : envContent + `\n${apiUrlLine}`;
       fs.writeFileSync(envPath, envContent);
       console.log(`✅ Updated ${path.basename(path.dirname(envPath))} .env.local with API URL: ${apiUrl}`);
     } catch (error) {
@@ -125,137 +96,104 @@ const updateFrontendEnv = (port) => {
   });
 };
 
-// Database connection
+// Connect Firestore
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ MongoDB connected successfully');
+    console.log('🔄 Connecting to Firestore...');
+    await db.collection('connection_test').limit(1).get();
+    console.log('✅ Firestore connected successfully');
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    console.error('❌ Firestore connection error:', error);
     process.exit(1);
   }
 };
 
-// Initialize database with sample data
+// Initialize sample data
 const initializeDatabase = async () => {
   try {
-    console.log('🔄 Starting database initialization...');
-    const User = require('./models/User');
-    const Property = require('./models/Property');
+    console.log('🔄 Initializing Firestore sample data...');
 
-    // Check if sample data already exists
-    const existingCleaner = await User.findOne({ email: 'elite@gmail.com' });
-    const existingCustomer = await User.findOne({ email: 'john.smith@email.com' });
-    const existingAdmin = await User.findOne({ email: 'admin@propertysanta.com' });
-    
-    let cleaner, customer, admin;
-    
-    // Create sample cleaner if it doesn't exist
-    if (!existingCleaner) {
-      console.log('👤 Creating sample cleaner...');
-      cleaner = new User({
-        name: 'elite cleaner',
-        email: 'elite@gmail.com',
-        password: 'password',
-        phone: '+1 (555) 123-4567',
-        role: 'cleaner',
-        rating: 4.8,
-        specialties: ['Deep Cleaning', 'Kitchen Sanitization'],
-        availability: { monday: true, tuesday: true, wednesday: true, thursday: true, friday: true, saturday: false, sunday: false },
-      });
-      await cleaner.save();
-      console.log('✅ Sample cleaner created');
-    } else {
-      cleaner = existingCleaner;
-    }
-    
-    // Create sample customer if it doesn't exist
-    if (!existingCustomer) {
-      console.log('👤 Creating sample customer...');
-      customer = new User({ name: 'John Smith', email: 'john.smith@email.com', password: 'password', phone: '+1 (555) 987-6543', role: 'customer' });
-      await customer.save();
-      console.log('✅ Sample customer created');
-    } else {
-      customer = existingCustomer;
-    }
-    
-    // Create sample admin if it doesn't exist
-    if (!existingAdmin) {
-      console.log('👤 Creating sample admin...');
-      admin = new User({ name: 'PropertySanta Admin', email: 'admin@propertysanta.com', password: 'admin123', phone: '+1 (555) 000-0000', role: 'admin' });
-      await admin.save();
-      console.log('✅ Sample admin created');
-    } else {
-      admin = existingAdmin;
-    }
+    // ---- USERS ----
+    const usersRef = db.collection('users');
 
-    // Check if properties already exist
-    const existingProperties = await Property.countDocuments();
-    if (existingProperties > 0) {
-      console.log('✅ Sample properties already exist. Skipping creation.');
-      return;
-    }
+    const createUserIfNotExists = async (email, userData) => {
+      const snapshot = await usersRef.where('email', '==', email.toLowerCase()).limit(1).get();
+      if (snapshot.empty) {
+        if (userData.password) {
+          const salt = await bcrypt.genSalt(10);
+          userData.password = await bcrypt.hash(userData.password, salt);
+        }
+        userData.createdAt = new Date();
+        userData.updatedAt = new Date();
+        const docRef = await usersRef.add(userData);
+        console.log(`✅ Created user: ${email}`);
+        return { id: docRef.id, ...userData };
+      } else {
+        return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+      }
+    };
 
-    // Create a comprehensive sample property
-    console.log('🏠 Creating a comprehensive sample property...');
-    const sampleProperty = new Property({
-      propertyId: 'EO-1208-RDU',
-      name: 'Enchanted Oaks House',
-      address: '1208 Enchanted Oaks Drive, Raleigh, NC 27606',
-      type: 'house',
-      squareFootage: 1945,
-      manual: {
-        title: 'Live Cleaning & Maintenance Manual',
-        content: 'Detailed manual content goes here. Focus on kitchen and bathrooms. Use special cleaner for granite countertops.',
-      },
-      roomTasks: [
-        {
-          roomType: 'bedroom',
-          tasks: [
-            { description: 'make the bed'},
-            { description: 'Clean floor'}
-          ],
-          estimatedTime: '45 minutes',
-          specialInstructions: ['Use granite-safe cleaner only.'],
-          isCompleted: false
-        },
-        {
-          roomType: 'bathroom',
-          tasks: [
-            { description: 'clean the floor'},
-          ],
-          estimatedTime: '30 minutes',
-          specialInstructions: ['Grout needs extra attention this week.'],
-          isCompleted: false
-        },
-      ],
-      scheduledTime: new Date(new Date().setDate(new Date().getDate() + 2)),
-      customer: customer._id,
-      assignedTo: cleaner._id,
-      photos: [
-      ],
-      issues: [
-      ],
-      aiFeedback: [], // Initially empty
-      isActive: true,
+    const adminUser = await createUserIfNotExists('admin@propertysanta.com', {
+      name: 'Admin User',
+      email: 'admin@propertysanta.com',
+      password: 'admin123',
+      role: 'admin',
+      isActive: true
     });
 
-    // Save the sample property
-    await sampleProperty.save();
-    console.log('✅ Sample property created successfully.');
+    const cleanerUser = await createUserIfNotExists('elite@gmail.com', {
+      name: 'Elite Cleaner',
+      email: 'elite@gmail.com',
+      password: 'password',
+      phone: '+1 (555) 123-4567',
+      role: 'cleaner',
+      rating: 4.8,
+      specialties: ['Deep Cleaning', 'Kitchen Sanitization'],
+      availability: { monday: true, tuesday: true, wednesday: true, thursday: true, friday: true, saturday: false, sunday: false }
+    });
 
-    // Add AI feedback related to an issue
-    const savedProperty = await Property.findOne({ propertyId: 'EO-1208-RDU' });
-    if (savedProperty && savedProperty.issues.length > 0) {
-      const issueId = savedProperty.issues[0]._id;
-      savedProperty.aiFeedback.push({
-        issueId: issueId,
-        feedback: 'The stain appears to be oil-based. A specialized solvent may be required.',
-        confidence: 0.85,
-        suggestions: ['Try using a mix of baking soda and vinegar.', 'Blot, do not rub the stain.'],
-      });
-      await savedProperty.save();
-      console.log('✅ AI feedback added to the sample property.');
+    const customerUser = await createUserIfNotExists('john.smith@email.com', {
+      name: 'John Smith',
+      email: 'john.smith@email.com',
+      password: 'password',
+      phone: '+1 (555) 987-6543',
+      role: 'customer'
+    });
+
+    // ---- PROPERTIES ----
+    const propertiesRef = db.collection('properties');
+    const propSnapshot = await propertiesRef.where('propertyId', '==', 'EO-1208-RDU').limit(1).get();
+
+    if (propSnapshot.empty) {
+      const sampleProperty = {
+        propertyId: 'EO-1208-RDU',
+        name: 'Enchanted Oaks House',
+        address: '1208 Enchanted Oaks Drive, Raleigh, NC 27606',
+        type: 'house',
+        squareFootage: 1945,
+        manual: {
+          title: 'Live Cleaning & Maintenance Manual',
+          content: 'Detailed manual content goes here. Focus on kitchen and bathrooms. Use special cleaner for granite countertops.'
+        },
+        roomTasks: [
+          { roomType: 'bedroom', tasks: [{ description: 'make the bed' }, { description: 'Clean floor' }], estimatedTime: '45 minutes', specialInstructions: ['Use granite-safe cleaner only.'], isCompleted: false },
+          { roomType: 'bathroom', tasks: [{ description: 'clean the floor' }], estimatedTime: '30 minutes', specialInstructions: ['Grout needs extra attention this week.'], isCompleted: false }
+        ],
+        scheduledTime: new Date(new Date().setDate(new Date().getDate() + 2)),
+        customer: customerUser.id,
+        assignedTo: cleanerUser.id,
+        photos: [],
+        issues: [],
+        aiFeedback: [],
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      await propertiesRef.add(sampleProperty);
+      console.log('✅ Sample property created');
+    } else {
+      console.log('✅ Sample property already exists');
     }
 
   } catch (error) {
@@ -275,12 +213,8 @@ const startServer = async () => {
       console.log(`🚀 Server running on port ${availablePort}`);
       console.log(`📱 API available at http://localhost:${availablePort}`);
       console.log(`🔗 Health check: http://localhost:${availablePort}/health`);
-
       updateFrontendEnv(availablePort);
-
-      if (availablePort !== PORT) {
-        console.log(`⚠️  Port ${PORT} was in use, using port ${availablePort} instead`);
-      }
+      if (availablePort !== PORT) console.log(`⚠️  Port ${PORT} was in use, using port ${availablePort} instead`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -288,4 +222,4 @@ const startServer = async () => {
   }
 };
 
-startServer(); 
+startServer();

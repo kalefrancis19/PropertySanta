@@ -40,33 +40,32 @@ const signUp = async (req, res) => {
       email,
       password,
       phone,
-      role: 'cleaner', // Always default to cleaner for signup
-      rating: 0,
-      specialties: [],
+      role: 'cleaner',
+      isActive: true,
       availability: {
-        monday: true,
-        tuesday: true,
-        wednesday: true,
-        thursday: true,
         friday: true,
         saturday: false,
         sunday: false
-      },
-      isActive: true
+      }
     });
 
+    // Save user to database
     await user.save();
 
-    // Generate token
+    // Generate tokens
     const token = generateToken(user._id);
+    const refreshToken = generateToken(user._id, '30d');
+
+    // Save refresh token to user
+    await user.updateRefreshToken(refreshToken);
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message: 'User created successfully',
       data: {
-        user,
+        user: user.toJSON(),
         token,
-        loginMethod: 'password'
+        refreshToken
       }
     });
   } catch (error) {
@@ -92,8 +91,8 @@ const loginWithPassword = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email, isActive: true });
+    // Check if user exists
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -101,28 +100,37 @@ const loginWithPassword = async (req, res) => {
       });
     }
 
-    // Check password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
+    // Check if password is correct
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
       });
     }
 
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.'
+      });
+    }
 
-    // Generate token
-    const token = generateToken(user._id);
+    // Generate tokens
+    const token = generateToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
 
-    res.json({
+    // Save refresh token to user
+    await user.updateRefreshToken(refreshToken);
+
+    res.status(200).json({
       success: true,
       message: 'Login successful',
       data: {
-        user,
+        user: user.toJSON(),
         token,
+        refreshToken,
         loginMethod: 'password'
       }
     });
@@ -194,15 +202,10 @@ const loginWithOTP = async (req, res) => {
       });
     }
 
-    const { email, otp } = req.body;
+    const { phone, otp } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ 
-      email, 
-      isActive: true,
-      otp,
-      otpExpiresAt: { $gt: new Date() }
-    });
+    // Find user by phone
+    const user = await User.findOne({ phone, otp, otpExpires: { $gt: new Date() } });
 
     if (!user) {
       return res.status(401).json({
@@ -213,7 +216,7 @@ const loginWithOTP = async (req, res) => {
 
     // Clear OTP after successful login
     user.otp = undefined;
-    user.otpExpiresAt = undefined;
+    user.otpExpires = undefined;
     user.lastLogin = new Date();
     await user.save();
 
@@ -233,7 +236,8 @@ const loginWithOTP = async (req, res) => {
     console.error('OTP login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error',
+      error: error.message
     });
   }
 };
@@ -241,7 +245,8 @@ const loginWithOTP = async (req, res) => {
 // Get current user
 const getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(req.user.id);
+    
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -249,15 +254,16 @@ const getCurrentUser = async (req, res) => {
       });
     }
 
-    res.json({
+    res.status(200).json({
       success: true,
-      data: { user }
+      data: user.toJSON()
     });
   } catch (error) {
-    console.error('Get current user error:', error);
+    console.error('Error getting current user:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Error getting current user',
+      error: error.message
     });
   }
 };
@@ -265,17 +271,22 @@ const getCurrentUser = async (req, res) => {
 // Logout
 const logout = async (req, res) => {
   try {
-    // In a real application, you might want to blacklist the token
-    // For now, we'll just return success
-    res.json({
+    // Clear refresh token
+    const user = await User.findById(req.user.id);
+    if (user) {
+      await user.removeRefreshToken();
+    }
+
+    res.status(200).json({
       success: true,
-      message: 'Logout successful'
+      message: 'Logged out successfully'
     });
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error('Error logging out:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Error logging out',
+      error: error.message
     });
   }
 };
