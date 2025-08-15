@@ -1,28 +1,29 @@
 // controllers/taskController.js
-const mongoose = require('mongoose');
-const Property = require('../models/Property');
+const { db, admin } = require('../config/firebase');
+const FieldValue = admin.firestore.FieldValue;
 
 // Admin - Get all room tasks
 const getAllTasksAdmin = async (req, res) => {
   try {
-    const { property } = req.query;
-    let properties;
+    const propertyId = req.query.property;
+    let propertiesRef = db.collection('properties');
 
-    if (property) {
-      properties = await Property.find({ _id: property });
-    } else {
-      properties = await Property.find({});
+    if (propertyId) {
+      propertiesRef = propertiesRef.where(admin.firestore.FieldPath.documentId(), '==', propertyId);
     }
 
+    const snapshot = await propertiesRef.get();
     const allRoomTasks = [];
-    properties.forEach(prop => {
-      prop.roomTasks.forEach((roomTask, idx) => {
+
+    snapshot.forEach(doc => {
+      const property = { id: doc.id, ...doc.data() };
+      (property.roomTasks || []).forEach((roomTask, idx) => {
         allRoomTasks.push({
-          propertyId: prop._id,
-          propertyName: prop.name,
-          address: prop.address,
+          propertyId: property.id,
+          propertyName: property.name,
+          address: property.address,
           roomTaskIndex: idx,
-          ...roomTask.toObject()
+          ...roomTask
         });
       });
     });
@@ -30,65 +31,56 @@ const getAllTasksAdmin = async (req, res) => {
     res.json({ success: true, roomTasks: allRoomTasks });
   } catch (error) {
     console.error('Get all room tasks error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
 // Authenticated user - Get all room tasks
 const getTasks = async (req, res) => {
   try {
-    const properties = await Property.find({ assignedTo: req.user.userId });
-    const userRoomTasks = [];
-    properties.forEach(prop => {
-      prop.roomTasks.forEach((roomTask, idx) => {
-        userRoomTasks.push({
-          propertyId: prop._id,
-          propertyName: prop.name,
-          address: prop.address,
-          roomTaskIndex: idx,
-          ...roomTask.toObject()
-        });
-      });
+    const userId = req.user.id;
+    const snapshot = await db.collection('properties').where('assignedTo', '==', userId).get();
+    const userProperties = [];
+
+    snapshot.forEach(doc => {
+      const property = { id: doc.id, ...doc.data() };
+      userProperties.push(property);
     });
 
-    res.json({ success: true, data: properties });
+    res.json({ success: true, data: userProperties });
   } catch (error) {
     console.error('Get user room tasks error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
+// Get task by ID
 const getTaskById = async (req, res) => {
   try {
     const taskId = req.params.id;
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
-    });
+    const snapshot = await db.collection('properties')
+      .where('assignedTo', '==', req.user.id)
+      .where('roomTasks', 'array-contains', { _id: taskId }) // Firestore cannot query nested objects like Mongo
+      .get();
 
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
-    }
+    let taskFound = null;
+    let propertyFound = null;
 
-    const task = property.roomTasks.find(rt => rt._id.toString() === taskId);
-    res.json({
-      success: true,
-      data: {
-        property: {
-          _id: property._id,
-          name: property.name,
-          address: property.address,
-          type: property.type
-        },
-        ...task.toObject()
+    snapshot.forEach(doc => {
+      const property = { id: doc.id, ...doc.data() };
+      const task = (property.roomTasks || []).find(rt => rt._id === taskId);
+      if (task) {
+        taskFound = task;
+        propertyFound = property;
       }
     });
+
+    if (!taskFound) return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
+
+    res.json({ success: true, data: { property: propertyFound, ...taskFound } });
   } catch (error) {
     console.error('Get task by ID error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
@@ -100,237 +92,209 @@ const updateTaskStatus = async (req, res) => {
     const validStatuses = ['pending', 'completed'];
 
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ success: false, message: `Invalid status. Only 'pending' or 'completed' are supported for this endpoint.` });
+      return res.status(400).json({ success: false, message: `Invalid status. Only 'pending' or 'completed' are supported.` });
     }
 
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
+    const snapshot = await db.collection('properties')
+      .where('assignedTo', '==', req.user.id)
+      .get();
+
+    let propertyDoc = null;
+    let taskIndex = -1;
+
+    snapshot.forEach(doc => {
+      const property = doc.data();
+      const idx = (property.roomTasks || []).findIndex(rt => rt._id === taskId);
+      if (idx !== -1) {
+        propertyDoc = doc;
+        taskIndex = idx;
+      }
     });
 
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
-    }
+    if (!propertyDoc) return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
 
-    const task = property.roomTasks.id(taskId);
-    const newCompletedStatus = (status === 'completed');
-
-    task.tasks.forEach(subTask => {
+    const propertyData = propertyDoc.data();
+    const newCompletedStatus = status === 'completed';
+    propertyData.roomTasks[taskIndex].tasks.forEach(subTask => {
       subTask.isCompleted = newCompletedStatus;
     });
 
-    await property.save();
-    res.json({ success: true, message: 'Task status updated successfully', data: task });
+    await propertyDoc.ref.update({ roomTasks: propertyData.roomTasks });
+    res.json({ success: true, message: 'Task status updated successfully', data: propertyData.roomTasks[taskIndex] });
   } catch (error) {
     console.error('Update task status error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
+// Add photo to property
 const addPhoto = async (req, res) => {
   try {
     const taskId = req.params.id;
     const { photoUrl, type, notes } = req.body;
     const validTypes = ['before', 'during', 'after'];
 
-    if (!validTypes.includes(type)) {
-      return res.status(400).json({ success: false, message: 'Invalid photo type' });
-    }
+    if (!validTypes.includes(type)) return res.status(400).json({ success: false, message: 'Invalid photo type' });
 
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
+    const snapshot = await db.collection('properties').where('assignedTo', '==', req.user.id).get();
+    let propertyDoc = null;
+
+    snapshot.forEach(doc => {
+      const property = doc.data();
+      const taskExists = (property.roomTasks || []).some(rt => rt._id === taskId);
+      if (taskExists) propertyDoc = doc;
     });
 
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied, cannot add photo.' });
-    }
+    if (!propertyDoc) return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
 
-    property.photos.push({ url: photoUrl, type, notes });
-    await property.save();
+    const propertyData = propertyDoc.data();
+    const photos = propertyData.photos || [];
+    const newPhoto = { url: photoUrl, type, notes, createdAt: new Date() };
+    photos.push(newPhoto);
 
-    res.json({
-      success: true,
-      message: 'Photo added successfully to property',
-      data: property.photos[property.photos.length - 1]
-    });
+    await propertyDoc.ref.update({ photos });
+    res.json({ success: true, message: 'Photo added successfully', data: newPhoto });
   } catch (error) {
     console.error('Add photo error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
+// Add issue to property
 const addIssue = async (req, res) => {
   try {
     const taskId = req.params.id;
     const { type, description, location, notes } = req.body;
 
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
+    const snapshot = await db.collection('properties').where('assignedTo', '==', req.user.id).get();
+    let propertyDoc = null;
+
+    snapshot.forEach(doc => {
+      const property = doc.data();
+      const taskExists = (property.roomTasks || []).some(rt => rt._id === taskId);
+      if (taskExists) propertyDoc = doc;
     });
 
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied, cannot add issue.' });
-    }
+    if (!propertyDoc) return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
 
-    property.issues.push({ type, description, location, notes });
-    await property.save();
+    const propertyData = propertyDoc.data();
+    const issues = propertyData.issues || [];
+    const newIssue = { type, description, location, notes, createdAt: new Date() };
+    issues.push(newIssue);
 
-    res.json({
-      success: true,
-      message: 'Issue added successfully to property',
-      data: property.issues[property.issues.length - 1]
-    });
+    await propertyDoc.ref.update({ issues });
+    res.json({ success: true, message: 'Issue added successfully', data: newIssue });
   } catch (error) {
     console.error('Add issue error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
+// Update task notes
 const updateTaskNotes = async (req, res) => {
   try {
     const taskId = req.params.id;
     const { notes } = req.body;
 
-    if (typeof notes === 'undefined') {
-      return res.status(400).json({ success: false, message: '"notes" field is required.' });
-    }
+    if (typeof notes === 'undefined') return res.status(400).json({ success: false, message: '"notes" field is required.' });
 
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
+    const snapshot = await db.collection('properties').where('assignedTo', '==', req.user.id).get();
+    let propertyDoc = null;
+    let taskIndex = -1;
+
+    snapshot.forEach(doc => {
+      const property = doc.data();
+      const idx = (property.roomTasks || []).findIndex(rt => rt._id === taskId);
+      if (idx !== -1) {
+        propertyDoc = doc;
+        taskIndex = idx;
+      }
     });
 
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
-    }
+    if (!propertyDoc) return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
 
-    const task = property.roomTasks.id(taskId);
-    task.specialInstructions = Array.isArray(notes) ? notes : [notes];
+    const propertyData = propertyDoc.data();
+    propertyData.roomTasks[taskIndex].specialInstructions = Array.isArray(notes) ? notes : [notes];
 
-    await property.save();
-    res.json({ success: true, message: 'Task notes updated successfully', data: task });
+    await propertyDoc.ref.update({ roomTasks: propertyData.roomTasks });
+    res.json({ success: true, message: 'Task notes updated successfully', data: propertyData.roomTasks[taskIndex] });
   } catch (error) {
     console.error('Update task notes error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
+// Get task stats
 const getTaskStats = async (req, res) => {
   try {
-    const userId = new mongoose.Types.ObjectId(req.user.userId);
+    const userId = req.user.id;
+    const snapshot = await db.collection('properties').where('assignedTo', '==', userId).get();
 
-    const results = await Property.aggregate([
-      { $match: { assignedTo: userId } },
-      { $unwind: '$roomTasks' },
-      {
-        $project: {
-          isCompleted: { $allElementsTrue: ['$roomTasks.tasks.isCompleted'] }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalTasks: { $sum: 1 },
-          completedTasks: {
-            $sum: { $cond: [{ $eq: ['$isCompleted', true] }, 1, 0] }
-          }
-        }
+    let totalTasks = 0, completedTasks = 0;
+    snapshot.forEach(doc => {
+      const property = doc.data();
+      (property.roomTasks || []).forEach(rt => {
+        totalTasks += rt.tasks.length;
+        completedTasks += rt.tasks.filter(t => t.isCompleted).length;
+      });
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalTasks,
+        completedTasks,
+        pendingTasks: totalTasks - completedTasks,
+        completionRate: totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : 0
       }
-    ]);
-
-    let statsData = {
-      totalTasks: 0,
-      completedTasks: 0,
-      pendingTasks: 0,
-      completionRate: 0
-    };
-
-    if (results.length > 0) {
-      const { totalTasks, completedTasks } = results[0];
-      statsData.totalTasks = totalTasks;
-      statsData.completedTasks = completedTasks;
-      statsData.pendingTasks = totalTasks - completedTasks;
-      statsData.completionRate = totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : 0;
-    }
-
-    res.json({ success: true, data: statsData });
+    });
   } catch (error) {
     console.error('Get task stats error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
+// Get property details
 const getPropertyDetails = async (req, res) => {
   try {
-    const property = await Property.findOne({
-      _id: req.params.propertyId,
-      assignedTo: req.user.userId
-    });
+    const propertyDoc = await db.collection('properties').doc(req.params.propertyId).get();
+    const property = propertyDoc.data();
 
-    if (!property) {
+    if (!property || property.assignedTo !== req.user.id) {
       return res.status(404).json({ success: false, message: 'Property not found or access denied.' });
     }
 
-    res.json({ success: true, data: property });
+    res.json({ success: true, data: { id: propertyDoc.id, ...property } });
   } catch (error) {
     console.error('Get property details error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
+// Update roomTask status
 const updateRoomTaskStatus = async (req, res) => {
   try {
     const { roomType, taskIndex, isCompleted } = req.body;
 
-    if (typeof isCompleted !== 'boolean') {
-      return res.status(400).json({ success: false, message: 'isCompleted must be a boolean.' });
-    }
+    if (typeof isCompleted !== 'boolean') return res.status(400).json({ success: false, message: 'isCompleted must be a boolean.' });
 
-    const property = await Property.findOne({
-      _id: req.params.propertyId,
-      assignedTo: req.user.userId
-    });
+    const propertyDoc = await db.collection('properties').doc(req.params.propertyId).get();
+    const property = propertyDoc.data();
 
-    if (!property) {
+    if (!property || property.assignedTo !== req.user.id) {
       return res.status(404).json({ success: false, message: 'Property not found or access denied.' });
     }
 
-    const roomTask = property.roomTasks.find(rt => rt.roomType === roomType);
-    if (!roomTask) {
-      return res.status(404).json({ success: false, message: `Room task with type '${roomType}' not found.` });
-    }
-
-    if (!roomTask.tasks || !roomTask.tasks[taskIndex]) {
-      return res.status(404).json({ success: false, message: `Task at index ${taskIndex} not found.` });
-    }
+    const roomTask = (property.roomTasks || []).find(rt => rt.roomType === roomType);
+    if (!roomTask || !roomTask.tasks[taskIndex]) return res.status(404).json({ success: false, message: 'Task not found.' });
 
     roomTask.tasks[taskIndex].isCompleted = isCompleted;
-    await property.save();
+    await propertyDoc.ref.update({ roomTasks: property.roomTasks });
 
     res.json({ success: true, message: 'Room task status updated successfully', data: roomTask });
   } catch (error) {
     console.error('Update room task status error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 

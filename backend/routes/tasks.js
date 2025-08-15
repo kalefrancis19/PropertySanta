@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth');
-const taskController = require('../controllers/firestore/taskController');
+const taskController = require('../controllers/taskController');
 
 // Admin route
 router.get('/admin', auth, taskController.getAllTasksAdmin);

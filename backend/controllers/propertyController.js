@@ -1,9 +1,16 @@
-const Property = require('../models/Property');
+const { db } = require('../config/firebase');
+
+// -------------------- Properties CRUD -------------------- //
 
 // Get all properties
 const getAllProperties = async (req, res) => {
   try {
-    const properties = await Property.find({}).sort({ createdAt: -1 });
+    const snapshot = await db.collection('properties').orderBy('createdAt', 'desc').get();
+    const properties = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id,
+      _id: doc.id // Add _id for backward compatibility
+    }));
     res.json({ success: true, properties });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching properties', error: error.message });
@@ -13,9 +20,16 @@ const getAllProperties = async (req, res) => {
 // Get property by ID
 const getPropertyById = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
-    res.json({ success: true, property });
+    const doc = await db.collection('properties').doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
+    res.json({ 
+      success: true, 
+      property: { 
+        ...doc.data(),
+        id: doc.id,
+        _id: doc.id // Add _id for backward compatibility
+      } 
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching property', error: error.message });
   }
@@ -25,15 +39,15 @@ const getPropertyById = async (req, res) => {
 const createProperty = async (req, res) => {
   try {
     const { propertyId, name, address, type, rooms, bathrooms, squareFootage, estimatedTime, manual, roomTasks, instructions, specialRequirements, owner } = req.body;
-    
+
     if (!propertyId || !name || !address || !type || !rooms || !bathrooms || !squareFootage || !estimatedTime) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
-    const existingProperty = await Property.findOne({ propertyId });
-    if (existingProperty) return res.status(400).json({ success: false, message: 'Property ID already exists' });
+    const existing = await db.collection('properties').where('propertyId', '==', propertyId).get();
+    if (!existing.empty) return res.status(400).json({ success: false, message: 'Property ID already exists' });
 
-    const property = new Property({
+    const data = {
       propertyId,
       name,
       address,
@@ -44,17 +58,35 @@ const createProperty = async (req, res) => {
       estimatedTime,
       manual: manual || {
         title: 'Live Cleaning & Maintenance Manual',
-        content: `Live Cleaning & Maintenance Manual\n${address}\nProperty Overview\n- Property ID: ${propertyId}\n- Type: ${type}\n- Square Footage: ${squareFootage} sq ft\n- Estimated Time: ${estimatedTime}`
+        content: `Live Cleaning & Maintenance Manual\n${address}\nProperty Overview\n- Property ID: ${propertyId}\n- Type: ${type}\n- Square Footage: ${squareFootage} sq ft\n- Estimated Time: ${estimatedTime}`,
+        lastUpdated: new Date()
       },
       roomTasks: roomTasks || [],
-      instructions,
-      specialRequirements,
-      owner,
-      isActive: true
-    });
+      instructions: instructions || '',
+      specialRequirements: specialRequirements || '',
+      owner: owner || '',
+      photos: [],
+      issues: [],
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
-    const savedProperty = await property.save();
-    res.status(201).json({ success: true, property: savedProperty });
+    const docRef = await db.collection('properties').add({
+      ...data,
+      _id: db.collection('properties').doc().id // Generate a new ID for _id field
+    });
+    
+    // Get the created document to ensure we have all fields
+    const createdDoc = await docRef.get();
+    res.status(201).json({ 
+      success: true, 
+      property: { 
+        ...createdDoc.data(),
+        id: docRef.id,
+        _id: docRef.id
+      } 
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error creating property', error: error.message });
   }
@@ -63,15 +95,24 @@ const createProperty = async (req, res) => {
 // Update property
 const updateProperty = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
+    const propertyRef = db.collection('properties').doc(req.params.id);
+    const doc = await propertyRef.get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
 
-    Object.keys(req.body).forEach(key => {
-      if (key !== '_id' && key !== '__v') property[key] = req.body[key];
+    const updates = { ...req.body, updatedAt: new Date() };
+    // Ensure _id is not overwritten
+    const { _id, ...updatesWithoutId } = updates;
+    await propertyRef.set(updatesWithoutId, { merge: true });
+
+    const updatedDoc = await propertyRef.get();
+    res.json({ 
+      success: true, 
+      property: { 
+        ...updatedDoc.data(),
+        id: updatedDoc.id,
+        _id: updatedDoc.id
+      } 
     });
-
-    const updatedProperty = await property.save();
-    res.json({ success: true, property: updatedProperty });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error updating property', error: error.message });
   }
@@ -80,22 +121,25 @@ const updateProperty = async (req, res) => {
 // Delete property
 const deleteProperty = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
+    const propertyRef = db.collection('properties').doc(req.params.id);
+    const doc = await propertyRef.get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
 
-    await Property.findByIdAndDelete(req.params.id);
+    await propertyRef.delete();
     res.json({ success: true, message: 'Property deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error deleting property', error: error.message });
   }
 };
 
+// -------------------- Property Manual -------------------- //
+
 // Get property manual
 const getPropertyManual = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
-    res.json({ success: true, manual: property.manual });
+    const doc = await db.collection('properties').doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
+    res.json({ success: true, manual: doc.data().manual });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching property manual', error: error.message });
   }
@@ -105,65 +149,106 @@ const getPropertyManual = async (req, res) => {
 const updatePropertyManual = async (req, res) => {
   try {
     const { manual } = req.body;
-    const property = await Property.findById(req.params.id);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
-
     if (!manual || !manual.title || !manual.content) {
       return res.status(400).json({ success: false, message: 'Manual title and content are required' });
     }
 
-    property.manual = { title: manual.title, content: manual.content, lastUpdated: new Date() };
-    const updatedProperty = await property.save();
-    res.json({ success: true, property: updatedProperty });
+    const propertyRef = db.collection('properties').doc(req.params.id);
+    const doc = await propertyRef.get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
+
+    await propertyRef.set({ manual: { ...manual, lastUpdated: new Date() }, updatedAt: new Date() }, { merge: true });
+    const updatedDoc = await propertyRef.get();
+    res.json({ success: true, property: { id: updatedDoc.id, ...updatedDoc.data() } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error updating property manual', error: error.message });
   }
 };
 
+// -------------------- Property Status -------------------- //
+
 // Toggle property active status
 const togglePropertyStatus = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
+    const propertyRef = db.collection('properties').doc(req.params.id);
+    const doc = await propertyRef.get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
 
-    property.isActive = !property.isActive;
-    const updatedProperty = await property.save();
-    res.json({ success: true, property: updatedProperty });
+    const newStatus = !doc.data().isActive;
+    await propertyRef.set({ isActive: newStatus, updatedAt: new Date() }, { merge: true });
+
+    const updatedDoc = await propertyRef.get();
+    res.json({ success: true, property: { id: updatedDoc.id, ...updatedDoc.data() } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error toggling property status', error: error.message });
   }
 };
+
+// -------------------- Room Tasks -------------------- //
 
 // Update roomTask status
 const updateRoomTaskStatus = async (req, res) => {
   try {
     const { propertyId, roomType, taskIndex } = req.params;
     const { isCompleted } = req.body;
-    const property = await Property.findById(propertyId);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
 
-    const roomTask = property.roomTasks.find(rt => rt.roomType === roomType);
+    const propertyRef = db.collection('properties').doc(propertyId);
+    const doc = await propertyRef.get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
+
+    const data = doc.data();
+    const roomTask = data.roomTasks.find(rt => rt.roomType === roomType);
     if (!roomTask || !roomTask.tasks[taskIndex]) return res.status(404).json({ success: false, message: 'Room task not found' });
 
     roomTask.tasks[taskIndex].isCompleted = isCompleted;
-    await property.save();
-    res.json({ success: true, message: 'Room task status updated', data: property });
+    await propertyRef.set({ roomTasks: data.roomTasks, updatedAt: new Date() }, { merge: true });
+
+    res.json({ success: true, message: 'Room task status updated', data: { id: propertyId, ...data } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
+// Update roomTask notes
+const updateRoomTaskNotes = async (req, res) => {
+  try {
+    const { propertyId, roomType } = req.params;
+    const { notes } = req.body;
+
+    const propertyRef = db.collection('properties').doc(propertyId);
+    const doc = await propertyRef.get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
+
+    const data = doc.data();
+    const roomTask = data.roomTasks.find(rt => rt.roomType === roomType);
+    if (!roomTask) return res.status(404).json({ success: false, message: 'Room task not found' });
+
+    roomTask.notes = notes;
+    await propertyRef.set({ roomTasks: data.roomTasks, updatedAt: new Date() }, { merge: true });
+
+    res.json({ success: true, message: 'Notes updated', data: { id: propertyId, ...data } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+// -------------------- Photos & Issues -------------------- //
 
 // Add photo to property
 const addPropertyPhoto = async (req, res) => {
   try {
     const { propertyId } = req.params;
     const { url, type, notes, localPath, tags } = req.body;
-    const property = await Property.findById(propertyId);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
 
-    property.photos.push({ url, type, notes, localPath, tags });
-    await property.save();
-    res.json({ success: true, message: 'Photo added', data: property });
+    const propertyRef = db.collection('properties').doc(propertyId);
+    const doc = await propertyRef.get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
+
+    const data = doc.data();
+    data.photos.push({ url, type, notes, localPath, tags });
+    await propertyRef.set({ photos: data.photos, updatedAt: new Date() }, { merge: true });
+
+    res.json({ success: true, message: 'Photo added', data: { id: propertyId, ...data } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
@@ -174,44 +259,31 @@ const addPropertyIssue = async (req, res) => {
   try {
     const { propertyId } = req.params;
     const { type, description, photoId, location, notes } = req.body;
-    const property = await Property.findById(propertyId);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
 
-    property.issues.push({ type, description, photoId, location, notes });
-    await property.save();
-    res.json({ success: true, message: 'Issue added', data: property });
+    const propertyRef = db.collection('properties').doc(propertyId);
+    const doc = await propertyRef.get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: 'Property not found' });
+
+    const data = doc.data();
+    data.issues.push({ type, description, photoId, location, notes, isResolved: false });
+    await propertyRef.set({ issues: data.issues, updatedAt: new Date() }, { merge: true });
+
+    res.json({ success: true, message: 'Issue added', data: { id: propertyId, ...data } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
-// Update notes for a roomTask
-const updateRoomTaskNotes = async (req, res) => {
-  try {
-    const { propertyId, roomType } = req.params;
-    const { notes } = req.body;
-    const property = await Property.findById(propertyId);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
+// -------------------- Property Stats -------------------- //
 
-    const roomTask = property.roomTasks.find(rt => rt.roomType === roomType);
-    if (!roomTask) return res.status(404).json({ success: false, message: 'Room task not found' });
-
-    roomTask.notes = notes;
-    await property.save();
-    res.json({ success: true, message: 'Notes updated', data: property });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error', error: error.message });
-  }
-};
-
-// Get stats for all properties/roomTasks
 const getPropertyStats = async (req, res) => {
   try {
-    const properties = await Property.find({});
+    const snapshot = await db.collection('properties').get();
     let totalTasks = 0, completedTasks = 0;
 
-    properties.forEach(property => {
-      property.roomTasks.forEach(rt => {
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      data.roomTasks.forEach(rt => {
         totalTasks += rt.tasks.length;
         completedTasks += rt.tasks.filter(t => t.isCompleted).length;
       });
@@ -222,13 +294,15 @@ const getPropertyStats = async (req, res) => {
       data: {
         totalTasks,
         completedTasks,
-        completionRate: totalTasks > 0 ? (completedTasks / totalTasks * 100).toFixed(1) : 0
+        completionRate: totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : 0
       }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
+// -------------------- Exports -------------------- //
 
 module.exports = {
   getAllProperties,
@@ -240,8 +314,8 @@ module.exports = {
   updatePropertyManual,
   togglePropertyStatus,
   updateRoomTaskStatus,
+  updateRoomTaskNotes,
   addPropertyPhoto,
   addPropertyIssue,
-  updateRoomTaskNotes,
   getPropertyStats
 };

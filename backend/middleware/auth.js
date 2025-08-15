@@ -24,7 +24,7 @@ const auth = async (req, res, next) => {
     // Get user from Firestore
     const userDoc = await db.collection('users').doc(decoded.userId).get();
     
-    if (!userDoc.exists || !userDoc.data().isActive) {
+    if (!userDoc.exists) {
       return res.status(401).json({
         success: false,
         message: 'Invalid token or user not found.'

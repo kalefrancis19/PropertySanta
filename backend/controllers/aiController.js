@@ -1,19 +1,22 @@
-const Property = require('../models/Property');
+// controllers/aiController.js
+const { db } = require('../config/firebase'); // Firestore instance
 const geminiService = require('../services/geminiService');
 const scoringService = require('../services/scoringService');
 
-// Helper to get manual requirements for a room
-const getManualRequirementsForRoom = (property, roomType) => {
-  if (!property || !property.roomTasks) return '';
-  const roomTask = property.roomTasks.find(rt => rt.roomType === roomType);
+// Helper: get manual requirements for a room
+const getManualRequirementsForRoom = (propertyData, roomType) => {
+  if (!propertyData?.roomTasks) return '';
+  const roomTask = propertyData.roomTasks.find(rt => rt.roomType === roomType);
   if (!roomTask) return '';
+
   let manualRequirements = roomTask.tasks.map(task =>
     `${task.description} (${task.estimatedTime})${task.specialNotes ? ` - ${task.specialNotes}` : ''}`
   ).join('\n');
-  if (roomTask.specialInstructions.length > 0) {
+
+  if (roomTask.specialInstructions?.length) {
     manualRequirements += `\nSpecial Instructions: ${roomTask.specialInstructions.join(', ')}`;
   }
-  if (roomTask.fragileItems.length > 0) {
+  if (roomTask.fragileItems?.length) {
     manualRequirements += `\nFragile Items: ${roomTask.fragileItems.join(', ')}`;
   }
   return manualRequirements;
@@ -34,7 +37,8 @@ const chatWithAI = async (req, res) => {
     });
 
     if (propertyId) {
-      const property = await Property.findById(propertyId);
+      const doc = await db.collection('properties').doc(propertyId).get();
+      const property = doc.exists ? { id: doc.id, ...doc.data() } : null;
       if (property) geminiService.updateContext({ currentProperty: property, workflowState: geminiService.context.workflowState || 'initial' });
     }
 
@@ -66,12 +70,12 @@ const handlePhotoUpload = async (req, res) => {
     if (!photoType || !roomType) return res.status(400).json({ success: false, message: 'Photo type and room type are required' });
 
     if (propertyId) {
-      const property = await Property.findById(propertyId);
+      const doc = await db.collection('properties').doc(propertyId).get();
+      const property = doc.exists ? { id: doc.id, ...doc.data() } : null;
       if (property) geminiService.updateContext({ currentProperty: property });
     }
 
     const result = await geminiService.handlePhotoUpload(photoBase64, photoType, roomType, userMessage);
-
     res.json({ success: true, data: { ...result, workflowState: geminiService.context.workflowState } });
   } catch (error) {
     console.error('Photo upload error:', error);
@@ -104,7 +108,8 @@ const analyzeBeforeAfterPhotos = async (req, res) => {
 
     let manualRequirements = '';
     if (propertyId) {
-      const property = await Property.findById(propertyId);
+      const doc = await db.collection('properties').doc(propertyId).get();
+      const property = doc.exists ? { id: doc.id, ...doc.data() } : null;
       if (property) {
         geminiService.updateContext({ currentProperty: property });
         manualRequirements = getManualRequirementsForRoom(property, roomType);
@@ -127,7 +132,8 @@ const analyzePhotoWithManual = async (req, res) => {
 
     let manualRequirements = '';
     if (propertyId) {
-      const property = await Property.findById(propertyId);
+      const doc = await db.collection('properties').doc(propertyId).get();
+      const property = doc.exists ? { id: doc.id, ...doc.data() } : null;
       if (property) {
         geminiService.updateContext({ currentProperty: property });
         manualRequirements = getManualRequirementsForRoom(property, roomType);
@@ -191,7 +197,8 @@ const resetWorkflow = async (req, res) => {
     });
 
     if (propertyId) {
-      const property = await Property.findById(propertyId);
+      const doc = await db.collection('properties').doc(propertyId).get();
+      const property = doc.exists ? { id: doc.id, ...doc.data() } : null;
       if (property) geminiService.updateContext({ currentProperty: property });
     }
 
@@ -199,20 +206,6 @@ const resetWorkflow = async (req, res) => {
   } catch (error) {
     console.error('Reset workflow error:', error);
     res.status(500).json({ success: false, message: 'Failed to reset workflow' });
-  }
-};
-
-// Update workflow progress
-const updateWorkflowProgress = async (req, res) => {
-  try {
-    const { propertyId, roomType, progress } = req.body;
-    if (!propertyId || !roomType || !progress) return res.status(400).json({ success: false, message: 'Property ID, room type, and progress are required' });
-
-    scoringService.updateWorkflowProgress(propertyId, roomType, progress);
-    res.json({ success: true, message: 'Workflow progress updated successfully' });
-  } catch (error) {
-    console.error('Update workflow progress error:', error);
-    res.status(500).json({ success: false, message: 'Failed to update workflow progress' });
   }
 };
 
@@ -256,7 +249,8 @@ const getManualRequirements = async (req, res) => {
     const { propertyId, roomType } = req.params;
     if (!propertyId || !roomType) return res.status(400).json({ success: false, message: 'Property ID and room type are required' });
 
-    const property = await Property.findById(propertyId);
+    const doc = await db.collection('properties').doc(propertyId).get();
+    const property = doc.exists ? { id: doc.id, ...doc.data() } : null;
     if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
 
     const roomTask = property.roomTasks.find(rt => rt.roomType === roomType);
@@ -292,9 +286,31 @@ module.exports = {
   generateWorkflowGuidance,
   getWorkflowState,
   resetWorkflow,
-  updateWorkflowProgress,
   updateContext,
   resetAIContext,
   getManualRequirements,
-  testTextAnalysis
+  testTextAnalysis,
+  updateWorkflowProgress: async (req, res) => {
+    try {
+      const { propertyId } = req.params;
+      const { progressData } = req.body;
+      const userId = req.user.uid;
+
+      if (!propertyId || !progressData) {
+        return res.status(400).json({ success: false, message: 'Missing required fields' });
+      }
+
+      // Update the workflow progress in Firestore
+      const workflowRef = db.collection('workflows').doc(`${userId}_${propertyId}`);
+      await workflowRef.set({
+        ...progressData,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      res.json({ success: true, message: 'Workflow progress updated successfully' });
+    } catch (error) {
+      console.error('Error updating workflow progress:', error);
+      res.status(500).json({ success: false, message: 'Failed to update workflow progress' });
+    }
+  }
 };

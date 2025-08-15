@@ -12,7 +12,19 @@ import {
   Building
 } from 'lucide-react';
 import Link from 'next/link';
-import { propertyAPI, Property, CreatePropertyRequest } from '@/services/api';
+import { propertyAPI, Property as BaseProperty, CreatePropertyRequest } from '@/services/api';
+
+// Extend the base Property type to handle both string and object addresses
+type Property = Omit<BaseProperty, 'address'> & {
+  address: string | {
+    street?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+};
+
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 
@@ -32,6 +44,7 @@ export default function PropertiesPage() {
   const fetchProperties = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Fetching properties...');
       const data = await propertyAPI.getAll();
       setProperties(data);
     } catch (error) {
@@ -115,6 +128,41 @@ export default function PropertiesPage() {
     );
   }
 
+  if (properties.length === 0) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Properties</h1>
+              <p className="text-gray-600 dark:text-gray-400">No properties found</p>
+            </div>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+              <span>Add Property</span>
+            </button>
+          </div>
+          
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <Home className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No properties found</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">Get started by adding your first property</p>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto"
+            >
+              <Plus className="h-5 w-5" />
+              <span>Add Property</span>
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -135,8 +183,8 @@ export default function PropertiesPage() {
 
         {/* Properties Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {properties.map((property) => (
-            <div key={property._id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          {properties.map((property, index) => (
+            <div key={property._id ?? index} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <div className="flex items-center space-x-2">
@@ -146,8 +194,18 @@ export default function PropertiesPage() {
                       {property.propertyId}
                   </span>
                   <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center mt-1">
-                    <MapPin className="h-3.5 w-3.5 mr-1" />
-                    {property.address}
+                    <MapPin className="h-3.5 w-3.5 mr-1 flex-shrink-0" />
+                    <span className="truncate">
+                      {typeof property.address === 'string' 
+                        ? property.address 
+                        : [
+                            property.address?.street,
+                            property.address?.city,
+                            property.address?.state,
+                            property.address?.postalCode,
+                            property.address?.country
+                          ].filter(Boolean).join(', ') || 'No address provided'}
+                    </span>
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
