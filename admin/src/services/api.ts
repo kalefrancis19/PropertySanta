@@ -225,10 +225,108 @@ export const taskAPI = {
       const response = await api.get(`/tasks/admin?property=${propertyId}`);
       return response.data.tasks || [];
     } catch (error) {
-      console.error('Error fetching tasks for property:', error);
+      console.error('Error fetching tasks by property:', error);
       throw error;
     }
   }
 };
 
-export default api; 
+// User types
+export interface User {
+  _id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: 'admin' | 'cleaner' | 'customer';
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateUserRequest {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  role: 'admin' | 'cleaner' | 'customer';
+  isActive?: boolean;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  password?: string;
+  phone?: string;
+  role?: 'admin' | 'cleaner' | 'customer';
+  isActive?: boolean;
+}
+
+// User API functions
+export const userAPI = {
+  // Get all users
+  getAll: async (): Promise<User[]> => {
+    try {
+      const response = await api.get('/users');
+      return response.data || [];
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      throw error;
+    }
+  },
+
+  // Get user by ID
+  getById: async (id: string): Promise<User> => {
+    try {
+      const response = await api.get(`/users/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      throw error;
+    }
+  },
+
+  // Create new user
+  create: async (user: CreateUserRequest): Promise<User> => {
+    try {
+      const response = await api.post('/users', user);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  },
+
+  // Update user
+  update: async (id: string, user: UpdateUserRequest): Promise<User> => {
+    try {
+      const response = await api.put(`/users/${id}`, user);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
+  },
+
+  // Delete user
+  delete: async (id: string): Promise<void> => {
+    try {
+      await api.delete(`/users/${id}`);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      throw error;
+    }
+  },
+
+  // Toggle user active status
+  toggleStatus: async (id: string, isActive: boolean): Promise<User> => {
+    try {
+      const response = await api.put(`/users/${id}`, { isActive });
+      return response.data;
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      throw error;
+    }
+  },
+};
+
+export default api;

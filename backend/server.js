@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/tasks');
 const aiRoutes = require('./routes/ai');
 const propertyRoutes = require('./routes/properties');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 const PORT = parseInt(process.env.PORT) || 5000;
@@ -62,6 +63,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/properties', propertyRoutes);
+app.use('/api/users', userRoutes);
 
 // Function to find available port
 const findAvailablePort = async (startPort) => {

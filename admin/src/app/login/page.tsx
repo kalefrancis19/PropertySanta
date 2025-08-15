@@ -23,7 +23,7 @@ export default function HomePage() {
     // Simulate login process
     setTimeout(() => {
       setIsLoading(false);
-      window.location.href = '/dashboard';
+      window.location.href = '/';
     }, 1000);
   };
 
@@ -53,14 +53,6 @@ export default function HomePage() {
                   <Sun className="h-5 w-5" />
                 )}
               </button>
-              
-              <a 
-                href="/admin/login"
-                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-              >
-                <Shield className="h-4 w-4" />
-                <span>Admin Portal</span>
-              </a>
             </div>
           </div>
         </div>

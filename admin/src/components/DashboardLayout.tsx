@@ -16,7 +16,6 @@ import {
   Sun,
   Moon,
   Users,
-  Package,
   ShoppingCart
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
@@ -31,11 +30,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [activeSection, setActiveSection] = useState(() => {
     if (pathname === '/') return 'overview';
     if (pathname === '/properties') return 'properties';
-    if (pathname === '/cleaners') return 'cleaners';
+    if (pathname === '/users') return 'users';
     if (pathname === '/tasks') return 'tasks';
     if (pathname === '/reports') return 'reports';
     if (pathname === '/messages') return 'messages';
-    if (pathname === '/inventories') return 'inventories';
     if (pathname === '/orders') return 'orders';
     if (pathname === '/settings') return 'settings';
     return 'overview';
@@ -44,11 +42,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigationItems = [
     { id: 'overview', name: 'Dashboard', icon: BarChart3, href: '/' },
     { id: 'properties', name: 'Properties', icon: Home, href: '/properties' },
-    { id: 'cleaners', name: 'Cleaners', icon: Users, href: '/cleaners' },
+    { id: 'users', name: 'Users', icon: Users, href: '/users' },
     { id: 'tasks', name: 'Tasks', icon: Calendar, href: '/tasks' },
     { id: 'reports', name: 'Reports', icon: FileText, href: '/reports' },
     { id: 'messages', name: 'Messages', icon: MessageCircle, href: '/messages' },
-    { id: 'inventories', name: 'Inventories', icon: Package, href: '/inventories' }, 
     { id: 'orders', name: 'Orders', icon: ShoppingCart, href: '/orders' },
     { id: 'settings', name: 'Settings', icon: Settings, href: '/settings' },
   ];
