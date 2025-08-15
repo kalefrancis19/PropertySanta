@@ -1,348 +1,228 @@
-// controllers/taskController.js
+const Task = require('../models/Task');
 const mongoose = require('mongoose');
-const Property = require('../models/Property');
 
-// Admin - Get all room tasks
-const getAllTasksAdmin = async (req, res) => {
+// @desc    Create a new task
+// @route   POST /api/tasks
+// @access  Private/Admin
+exports.createTask = async (req, res) => {
   try {
-    const { property } = req.query;
-    let properties;
-
-    if (property) {
-      properties = await Property.find({ _id: property });
-    } else {
-      properties = await Property.find({});
-    }
-
-    const allRoomTasks = [];
-    properties.forEach(prop => {
-      prop.roomTasks.forEach((roomTask, idx) => {
-        allRoomTasks.push({
-          propertyId: prop._id,
-          propertyName: prop.name,
-          address: prop.address,
-          roomTaskIndex: idx,
-          ...roomTask.toObject()
-        });
-      });
+    const { propertyId, requirements, specialRequirement, scheduledTime, assignedTo } = req.body;
+    
+    const task = new Task({
+      propertyId,
+      requirements: requirements || [],
+      specialRequirement,
+      scheduledTime: scheduledTime ? new Date(scheduledTime) : undefined,
+      assignedTo,
+      isActive: true
     });
 
-    res.json({ success: true, roomTasks: allRoomTasks });
+    await task.save();
+    res.status(201).json({ success: true, data: task });
   } catch (error) {
-    console.error('Get all room tasks error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error creating task:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 };
 
-// Authenticated user - Get all room tasks
-const getTasks = async (req, res) => {
+// @desc    Get all tasks
+// @route   GET /api/tasks
+// @access  Private/Admin
+exports.getTasks = async (req, res) => {
   try {
-    const properties = await Property.find({ assignedTo: req.user.userId });
-    const userRoomTasks = [];
-    properties.forEach(prop => {
-      prop.roomTasks.forEach((roomTask, idx) => {
-        userRoomTasks.push({
-          propertyId: prop._id,
-          propertyName: prop.name,
-          address: prop.address,
-          roomTaskIndex: idx,
-          ...roomTask.toObject()
-        });
-      });
-    });
-
-    res.json({ success: true, data: properties });
+    const { propertyId, isActive } = req.query;
+    const filter = {};
+    
+    if (propertyId) filter.propertyId = propertyId;
+    if (isActive !== undefined) filter.isActive = isActive === 'true';
+    
+    const tasks = await Task.find(filter)
+      .populate('assignedTo', 'name email')
+      .sort({ scheduledTime: -1 });
+      
+    res.status(200).json({ success: true, count: tasks.length, data: tasks });
   } catch (error) {
-    console.error('Get user room tasks error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error getting tasks:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 };
 
-const getTaskById = async (req, res) => {
+// @desc    Get single task by ID
+// @route   GET /api/tasks/:id
+// @access  Private
+exports.getTask = async (req, res) => {
   try {
-    const taskId = req.params.id;
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
-    });
-
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
+    const task = await Task.findById(req.params.id)
+      .populate('assignedTo', 'name email')
+      .populate('photos.uploadedBy', 'name')
+      .populate('issues.reportedBy', 'name');
+      
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
     }
-
-    const task = property.roomTasks.find(rt => rt._id.toString() === taskId);
-    res.json({
-      success: true,
-      data: {
-        property: {
-          _id: property._id,
-          name: property.name,
-          address: property.address,
-          type: property.type
-        },
-        ...task.toObject()
-      }
-    });
+    
+    res.status(200).json({ success: true, data: task });
   } catch (error) {
-    console.error('Get task by ID error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error getting task:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 };
 
-// Update full task status
-const updateTaskStatus = async (req, res) => {
+// @desc    Update task
+// @route   PUT /api/tasks/:id
+// @access  Private/Admin
+exports.updateTask = async (req, res) => {
   try {
-    const taskId = req.params.id;
-    const { status } = req.body;
-    const validStatuses = ['pending', 'completed'];
-
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ success: false, message: `Invalid status. Only 'pending' or 'completed' are supported for this endpoint.` });
-    }
-
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
-    });
-
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
-    }
-
-    const task = property.roomTasks.id(taskId);
-    const newCompletedStatus = (status === 'completed');
-
-    task.tasks.forEach(subTask => {
-      subTask.isCompleted = newCompletedStatus;
-    });
-
-    await property.save();
-    res.json({ success: true, message: 'Task status updated successfully', data: task });
-  } catch (error) {
-    console.error('Update task status error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const addPhoto = async (req, res) => {
-  try {
-    const taskId = req.params.id;
-    const { photoUrl, type, notes } = req.body;
-    const validTypes = ['before', 'during', 'after'];
-
-    if (!validTypes.includes(type)) {
-      return res.status(400).json({ success: false, message: 'Invalid photo type' });
-    }
-
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
-    });
-
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied, cannot add photo.' });
-    }
-
-    property.photos.push({ url: photoUrl, type, notes });
-    await property.save();
-
-    res.json({
-      success: true,
-      message: 'Photo added successfully to property',
-      data: property.photos[property.photos.length - 1]
-    });
-  } catch (error) {
-    console.error('Add photo error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const addIssue = async (req, res) => {
-  try {
-    const taskId = req.params.id;
-    const { type, description, location, notes } = req.body;
-
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
-    });
-
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied, cannot add issue.' });
-    }
-
-    property.issues.push({ type, description, location, notes });
-    await property.save();
-
-    res.json({
-      success: true,
-      message: 'Issue added successfully to property',
-      data: property.issues[property.issues.length - 1]
-    });
-  } catch (error) {
-    console.error('Add issue error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const updateTaskNotes = async (req, res) => {
-  try {
-    const taskId = req.params.id;
-    const { notes } = req.body;
-
-    if (typeof notes === 'undefined') {
-      return res.status(400).json({ success: false, message: '"notes" field is required.' });
-    }
-
-    const property = await Property.findOne({
-      'roomTasks._id': taskId,
-      assignedTo: req.user.userId
-    });
-
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Task not found or access denied.' });
-    }
-
-    const task = property.roomTasks.id(taskId);
-    task.specialInstructions = Array.isArray(notes) ? notes : [notes];
-
-    await property.save();
-    res.json({ success: true, message: 'Task notes updated successfully', data: task });
-  } catch (error) {
-    console.error('Update task notes error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getTaskStats = async (req, res) => {
-  try {
-    const userId = new mongoose.Types.ObjectId(req.user.userId);
-
-    const results = await Property.aggregate([
-      { $match: { assignedTo: userId } },
-      { $unwind: '$roomTasks' },
+    const { requirements, specialRequirement, scheduledTime, assignedTo, isActive } = req.body;
+    
+    const task = await Task.findByIdAndUpdate(
+      req.params.id,
       {
-        $project: {
-          isCompleted: { $allElementsTrue: ['$roomTasks.tasks.isCompleted'] }
+        $set: {
+          requirements,
+          specialRequirement,
+          scheduledTime: scheduledTime ? new Date(scheduledTime) : undefined,
+          assignedTo,
+          isActive
         }
       },
-      {
-        $group: {
-          _id: null,
-          totalTasks: { $sum: 1 },
-          completedTasks: {
-            $sum: { $cond: [{ $eq: ['$isCompleted', true] }, 1, 0] }
-          }
-        }
-      }
-    ]);
+      { new: true, runValidators: true }
+    );
+    
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    
+    res.status(200).json({ success: true, data: task });
+  } catch (error) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+};
 
-    let statsData = {
-      totalTasks: 0,
-      completedTasks: 0,
-      pendingTasks: 0,
-      completionRate: 0
+// @desc    Delete task
+// @route   DELETE /api/tasks/:id
+// @access  Private/Admin
+exports.deleteTask = async (req, res) => {
+  try {
+    const task = await Task.findByIdAndDelete(req.params.id);
+    
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    
+    res.status(200).json({ success: true, data: {} });
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+};
+
+// @desc    Add photo to task
+// @route   POST /api/tasks/:id/photos
+// @access  Private
+exports.addPhoto = async (req, res) => {
+  try {
+    const { url, type, tags, notes } = req.body;
+    
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    
+    const photo = {
+      url,
+      type,
+      uploadedBy: req.user.id,
+      tags,
+      notes
     };
-
-    if (results.length > 0) {
-      const { totalTasks, completedTasks } = results[0];
-      statsData.totalTasks = totalTasks;
-      statsData.completedTasks = completedTasks;
-      statsData.pendingTasks = totalTasks - completedTasks;
-      statsData.completionRate = totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : 0;
-    }
-
-    res.json({ success: true, data: statsData });
-  } catch (error) {
-    console.error('Get task stats error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getPropertyDetails = async (req, res) => {
-  try {
-    const property = await Property.findOne({
-      _id: req.params.propertyId,
-      assignedTo: req.user.userId
+    
+    task.photos.push(photo);
+    await task.save();
+    
+    res.status(201).json({ 
+      success: true, 
+      data: task.photos[task.photos.length - 1] 
     });
-
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Property not found or access denied.' });
-    }
-
-    res.json({ success: true, data: property });
   } catch (error) {
-    console.error('Get property details error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error adding photo:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 };
 
-const updateRoomTaskStatus = async (req, res) => {
+// @desc    Add issue to task
+// @route   POST /api/tasks/:id/issues
+// @access  Private
+exports.addIssue = async (req, res) => {
   try {
-    const { roomType, taskIndex, isCompleted } = req.body;
-
-    if (typeof isCompleted !== 'boolean') {
-      return res.status(400).json({ success: false, message: 'isCompleted must be a boolean.' });
+    const { type, description, location, notes, photoId } = req.body;
+    
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
     }
-
-    const property = await Property.findOne({
-      _id: req.params.propertyId,
-      assignedTo: req.user.userId
+    
+    const issue = {
+      type,
+      description,
+      location,
+      notes,
+      photoId,
+      reportedBy: req.user.id,
+      isResolved: false
+    };
+    
+    task.issues.push(issue);
+    await task.save();
+    
+    res.status(201).json({ 
+      success: true, 
+      data: task.issues[task.issues.length - 1] 
     });
-
-    if (!property) {
-      return res.status(404).json({ success: false, message: 'Property not found or access denied.' });
-    }
-
-    const roomTask = property.roomTasks.find(rt => rt.roomType === roomType);
-    if (!roomTask) {
-      return res.status(404).json({ success: false, message: `Room task with type '${roomType}' not found.` });
-    }
-
-    if (!roomTask.tasks || !roomTask.tasks[taskIndex]) {
-      return res.status(404).json({ success: false, message: `Task at index ${taskIndex} not found.` });
-    }
-
-    roomTask.tasks[taskIndex].isCompleted = isCompleted;
-    await property.save();
-
-    res.json({ success: true, message: 'Room task status updated successfully', data: roomTask });
   } catch (error) {
-    console.error('Update room task status error:', error);
-    if (error.name === 'CastError') {
-      return res.status(400).json({ success: false, message: 'Invalid ID format' });
-    }
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error adding issue:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 };
 
-module.exports = {
-  getAllTasksAdmin,
-  getTasks,
-  getTaskById,
-  updateTaskStatus,
-  addPhoto,
-  addIssue,
-  updateTaskNotes,
-  getTaskStats,
-  getPropertyDetails,
-  updateRoomTaskStatus
+// @desc    Update task requirement status
+// @route   PUT /api/tasks/:taskId/requirements/:reqIndex/tasks/:taskIndex
+// @access  Private
+exports.updateRequirementStatus = async (req, res) => {
+  try {
+    const { taskId, reqIndex, taskIndex } = req.params;
+    const { isCompleted } = req.body;
+    
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ success: false, error: 'Task not found' });
+    }
+    
+    if (reqIndex >= task.requirements.length) {
+      return res.status(400).json({ success: false, error: 'Invalid requirement index' });
+    }
+    
+    const requirement = task.requirements[reqIndex];
+    
+    if (taskIndex >= requirement.tasks.length) {
+      return res.status(400).json({ success: false, error: 'Invalid task index' });
+    }
+    
+    requirement.tasks[taskIndex].isCompleted = isCompleted;
+    
+    // Check if all tasks in this requirement are completed
+    const allTasksCompleted = requirement.tasks.every(task => task.isCompleted);
+    requirement.isCompleted = allTasksCompleted;
+    
+    await task.save();
+    
+    res.status(200).json({ 
+      success: true, 
+      data: requirement 
+    });
+  } catch (error) {
+    console.error('Error updating requirement status:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
 };

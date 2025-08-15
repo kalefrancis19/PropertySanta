@@ -194,40 +194,163 @@ export const propertyAPI = {
 };
 
 // Task types and API
-export interface Task {
-  _id?: string;
-  title: string;
+export interface TaskRequirement {
+  roomType: string;
+  tasks: Array<{
+    description: string;
+    isCompleted: boolean;
+  }>;
+  isCompleted: boolean;
+}
+
+export interface Photo {
+  _id: string;
+  url: string;
+  type: 'before' | 'during' | 'after';
+  uploadedBy: string | { _id: string; name: string };
+  uploadedAt: Date;
+  isUploaded: boolean;
+  localPath?: string;
+  tags?: string[];
+  notes?: string;
+}
+
+export interface Issue {
+  _id: string;
+  type: string;
   description: string;
-  property: string;
-  address: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  estimatedTime: string;
-  priority: 'low' | 'medium' | 'high';
+  photoId?: string;
+  location?: string;
+  notes?: string;
+  reportedBy: string | { _id: string; name: string };
+  isResolved: boolean;
+  resolvedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AIFeedback {
+  photoId: string;
+  issueId?: string;
+  feedback: string;
+  improvements: string[];
+  confidence: number;
+  suggestions: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Task {
+  _id: string;
+  propertyId: string;
+  requirements: TaskRequirement[];
+  specialRequirement?: string;
+  scheduledTime?: Date;
+  assignedTo?: string | { _id: string; name: string; email: string };
+  photos: Photo[];
+  issues: Issue[];
+  aiFeedback: AIFeedback[];
+  chatHistory?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateTaskRequest {
+  propertyId: string;
+  requirements: Array<{
+    roomType: string;
+    tasks: Array<{
+      description: string;
+    }>;
+  }>;
+  specialRequirement?: string;
+  scheduledTime?: Date | string;
   assignedTo?: string;
-  instructions?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  isActive?: boolean;
+}
+
+export interface UpdateTaskRequest {
+  requirements?: TaskRequirement[];
+  specialRequirement?: string;
+  scheduledTime?: Date | string;
+  assignedTo?: string;
+  isActive?: boolean;
+}
+
+export interface AddPhotoRequest {
+  url: string;
+  type: 'before' | 'during' | 'after';
+  tags?: string[];
+  notes?: string;
+}
+
+export interface AddIssueRequest {
+  type: string;
+  description: string;
+  location?: string;
+  notes?: string;
+  photoId?: string;
 }
 
 export const taskAPI = {
-  getAll: async (): Promise<Task[]> => {
-    try {
-      const response = await api.get('/tasks');
-      return response.data.tasks || [];
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      throw error;
-    }
+  // Get all tasks (admin only)
+  async getAll(filters: { propertyId?: string; isActive?: boolean } = {}): Promise<Task[]> {
+    const params = new URLSearchParams();
+    if (filters.propertyId) params.append('propertyId', filters.propertyId);
+    if (filters.isActive !== undefined) params.append('isActive', String(filters.isActive));
+    
+    const response = await api.get(`/tasks?${params.toString()}`);
+    return response.data.data;
   },
 
-  getByProperty: async (propertyId: string): Promise<Task[]> => {
-    try {
-      const response = await api.get(`/tasks/admin?property=${propertyId}`);
-      return response.data.tasks || [];
-    } catch (error) {
-      console.error('Error fetching tasks by property:', error);
-      throw error;
-    }
+  // Get task by ID
+  async getById(id: string): Promise<Task> {
+    const response = await api.get(`/tasks/${id}`);
+    return response.data.data;
+  },
+
+  // Create new task (admin only)
+  async create(task: CreateTaskRequest): Promise<Task> {
+    const response = await api.post('/tasks', task);
+    return response.data.data;
+  },
+
+  // Update task (admin only)
+  async update(id: string, updates: UpdateTaskRequest): Promise<Task> {
+    const response = await api.put(`/tasks/${id}`, updates);
+    return response.data.data;
+  },
+
+  // Delete task (admin only)
+  async delete(id: string): Promise<void> {
+    await api.delete(`/tasks/${id}`);
+  },
+
+  // Add photo to task
+  async addPhoto(taskId: string, photo: AddPhotoRequest): Promise<Photo> {
+    const response = await api.post(`/tasks/${taskId}/photos`, photo);
+    return response.data.data;
+  },
+
+  // Add issue to task
+  async addIssue(taskId: string, issue: AddIssueRequest): Promise<Issue> {
+    const response = await api.post(`/tasks/${taskId}/issues`, issue);
+    return response.data.data;
+  },
+
+  // Update requirement task status
+  async updateRequirementStatus(
+    taskId: string, 
+    reqIndex: number, 
+    taskIndex: number, 
+    isCompleted: boolean
+  ): Promise<TaskRequirement> {
+    const response = await api.put(
+      `/tasks/${taskId}/requirements/${reqIndex}/tasks/${taskIndex}`,
+      { isCompleted }
+    );
+    return response.data.data;
   }
 };
 

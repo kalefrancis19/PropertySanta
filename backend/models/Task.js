@@ -86,35 +86,19 @@ const RequirementSchema = new mongoose.Schema({
   }
 }, { _id: true });
 
-const specialRequirementSchema = new mongoose.Schema({
-  roomType: {
-    type: String,
-  },
-  tasks: [{
-    description: {
-      type: String,
-    }
-  }],
-  isCompleted: {
-    type: Boolean,
-    default: false
-  }
-}, { _id: true });
-
-const propertySchema = new mongoose.Schema({
+const Taskschema = new mongoose.Schema({
   propertyId: {
     type: String,
     required: true,
     unique: true
   },
   requirements: [RequirementSchema],
-  specialRequirement: [specialRequirementSchema],
+
+  specialRequirement: String,
+
   scheduledTime: Date,
 
-  assignedTo: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
+  assignedTo: String,
 
   photos: [photoSchema],
 
@@ -133,9 +117,9 @@ const propertySchema = new mongoose.Schema({
 });
 
 // Index for efficient queries
-propertySchema.index({ address: 1 });
-propertySchema.index({ type: 1 });
-propertySchema.index({ isActive: 1 });
-propertySchema.index({ propertyId: 1 });
+Taskschema.index({ address: 1 });
+Taskschema.index({ type: 1 });
+Taskschema.index({ isActive: 1 });
+Taskschema.index({ propertyId: 1 });
 
-module.exports = mongoose.model('Property', propertySchema); 
+module.exports = mongoose.model('Task', Taskschema); 

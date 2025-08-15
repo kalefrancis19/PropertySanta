@@ -144,17 +144,16 @@ const initializeDatabase = async () => {
     console.log('🔄 Starting database initialization...');
     const User = require('./models/User');
     const Property = require('./models/Property');
+    const Task = require('./models/Task'); // <-- Add Task model
 
-    // Check if sample data already exists
+    // --- Existing user creation code (cleaner, customer, admin) ---
     const existingCleaner = await User.findOne({ email: 'elite@gmail.com' });
     const existingCustomer = await User.findOne({ email: 'john.smith@email.com' });
     const existingAdmin = await User.findOne({ email: 'admin@propertysanta.com' });
     
     let cleaner, customer, admin;
-    
-    // Create sample cleaner if it doesn't exist
+
     if (!existingCleaner) {
-      console.log('👤 Creating sample cleaner...');
       cleaner = new User({
         name: 'elite cleaner',
         email: 'elite@gmail.com',
@@ -167,90 +166,130 @@ const initializeDatabase = async () => {
       });
       await cleaner.save();
       console.log('✅ Sample cleaner created');
-    } else {
-      cleaner = existingCleaner;
-    }
-    
-    // Create sample customer if it doesn't exist
+    } else cleaner = existingCleaner;
+
     if (!existingCustomer) {
-      console.log('👤 Creating sample customer...');
-      customer = new User({ name: 'John Smith', email: 'john.smith@email.com', password: 'password', phone: '+1 (555) 987-6543', role: 'customer' });
+      customer = new User({
+        name: 'John Smith',
+        email: 'john.smith@email.com',
+        password: 'password',
+        phone: '+1 (555) 987-6543',
+        role: 'customer'
+      });
       await customer.save();
       console.log('✅ Sample customer created');
-    } else {
-      customer = existingCustomer;
-    }
-    
-    // Create sample admin if it doesn't exist
+    } else customer = existingCustomer;
+
     if (!existingAdmin) {
-      console.log('👤 Creating sample admin...');
-      admin = new User({ name: 'PropertySanta Admin', email: 'admin@propertysanta.com', password: 'admin123', phone: '+1 (555) 000-0000', role: 'admin' });
+      admin = new User({
+        name: 'PropertySanta Admin',
+        email: 'admin@propertysanta.com',
+        password: 'admin123',
+        phone: '+1 (555) 000-0000',
+        role: 'admin'
+      });
       await admin.save();
       console.log('✅ Sample admin created');
-    } else {
-      admin = existingAdmin;
-    }
+    } else admin = existingAdmin;
 
-    // Check if properties already exist
+    // --- Existing property creation code ---
     const existingProperties = await Property.countDocuments();
-    if (existingProperties > 0) {
-      console.log('✅ Sample properties already exist. Skipping creation.');
-      return;
+    if (existingProperties === 0) {
+      const sampleProperty = new Property({
+        propertyId: 'EO-1208-RDU',
+        name: 'Enchanted Oaks House',
+        address: '1208 Enchanted Oaks Drive, Raleigh, NC 27606',
+        type: 'house',
+        squareFootage: 1945,
+        manual: {
+          title: 'Live Cleaning & Maintenance Manual',
+          content: 'Detailed manual content goes here. Focus on kitchen and bathrooms. Use special cleaner for granite countertops.',
+        },
+        roomTasks: [
+          {
+            roomType: 'bedroom',
+            tasks: [
+              { description: 'make the bed', Regular: 'week' },
+              { description: 'Clean floor', Regular: 'week' }
+            ],
+          },
+          {
+            roomType: 'bathroom',
+            tasks: [
+              { description: 'clean the floor', Regular: '2week' },
+            ],
+          },
+        ],
+        customer: customer._id, // assign actual customer ID
+        cycle: 'weekly',
+        isActive: true,
+      });
+      await sampleProperty.save();
+      console.log('✅ Sample property created successfully.');
     }
 
-    // Create a comprehensive sample property
-    console.log('🏠 Creating a comprehensive sample property...');
-    const sampleProperty = new Property({
-      propertyId: 'EO-1208-RDU',
-      name: 'Enchanted Oaks House',
-      address: '1208 Enchanted Oaks Drive, Raleigh, NC 27606',
-      type: 'house',
-      squareFootage: 1945,
-      manual: {
-        title: 'Live Cleaning & Maintenance Manual',
-        content: 'Detailed manual content goes here. Focus on kitchen and bathrooms. Use special cleaner for granite countertops.',
-      },
-      roomTasks: [
-        {
-          roomType: 'bedroom',
-          tasks: [
-            { description: 'make the bed', Regular: 'week' },
-            { description: 'Clean floor', Regular: 'week' }
-          ],
-        },
-        {
-          roomType: 'bathroom',
-          tasks: [
-            { description: 'clean the floor', Regular: '2week' },
-          ],
-        },
-      ],
-      customer: "64b5f1f0e3a3c2a1b0c4d5e6", // <-- must be 24-char hex string
-      cycle: 'weekly',
-      isActive: true,
-    });
-    // Save the sample property
-    await sampleProperty.save();
-    console.log('✅ Sample property created successfully.');
-
-    // Add AI feedback related to an issue
-    // const savedProperty = await Property.findOne({ propertyId: 'EO-1208-RDU' });
-    // if (savedProperty && savedProperty.issues.length > 0) {
-    //   const issueId = savedProperty.issues[0]._id;
-    //   savedProperty.aiFeedback.push({
-    //     issueId: issueId,
-    //     feedback: 'The stain appears to be oil-based. A specialized solvent may be required.',
-    //     confidence: 0.85,
-    //     suggestions: ['Try using a mix of baking soda and vinegar.', 'Blot, do not rub the stain.'],
-    //   });
-    //   await savedProperty.save();
-    //   console.log('✅ AI feedback added to the sample property.');
-    // }
+    // --- Add sample Task data ---
+    const existingTasks = await Task.countDocuments();
+    if (existingTasks === 0) {
+      const sampleTask = new Task({
+        propertyId: 'EO-1208-RDU',
+        requirements: [
+          {
+            roomType: 'kitchen',
+            tasks: [
+              { description: 'Clean countertops' },
+              { description: 'Mop floor' }
+            ]
+          },
+          {
+            roomType: 'living room',
+            tasks: [
+              { description: 'Vacuum carpet' },
+              { description: 'Dust shelves' }
+            ]
+          }
+        ],
+        specialRequirement: 'Use eco-friendly cleaning products',
+        scheduledTime: new Date('2025-09-17T10:00:00Z'),
+        assignedTo: "64b5f1f0e3a3c2a1b0c4d5e6", 
+        photos: [
+          {
+            url: 'https://example.com/photos/kitchen_before.jpg',
+            type: 'before',
+            localPath: '/uploads/kitchen_before.jpg',
+            tags: ['kitchen', 'countertop'],
+            notes: 'Initial condition of the kitchen'
+          }
+        ],
+        issues: [
+          {
+            type: 'Damage',
+            description: 'Scratch on the kitchen countertop',
+            location: 'kitchen',
+            notes: 'Reported by cleaning staff',
+            isResolved: false
+          }
+        ],
+        aiFeedback: [
+          {
+            feedback: 'Countertop needs deep cleaning',
+            improvements: ['Use stronger cleaner', 'Wipe edges carefully'],
+            confidence: 0.85,
+            suggestions: ['Schedule follow-up cleaning']
+          }
+        ],
+        chatHistory: '2025-08-16: Task assigned to elite cleaner.',
+        isActive: true
+      });
+      await sampleTask.save();
+      console.log('✅ Sample task created successfully.');
+    }
 
   } catch (error) {
     console.error('❌ Error initializing sample data:', error);
   }
 };
+
 
 // Start server
 const startServer = async () => {
