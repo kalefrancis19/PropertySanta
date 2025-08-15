@@ -1,27 +1,5 @@
 const mongoose = require('mongoose');
 
-const roomTaskSchema = new mongoose.Schema({
-  roomType: {
-    type: String,
-    required: true
-  },
-  tasks: [{
-    description: {
-      type: String,
-      required: true
-    }
-  }],
-  estimatedTime: {
-    type: String,
-    required: true
-  },
-  specialInstructions: [String],
-  isCompleted: {
-    type: Boolean,
-    default: false
-  }
-}, { _id: true });
-
 const photoSchema = new mongoose.Schema({
   url: {
     type: String,
@@ -91,54 +69,47 @@ const aiFeedbackSchema = new mongoose.Schema({
   suggestions: [String],
 }, { timestamps: true });
 
+const RequirementSchema = new mongoose.Schema({
+  roomType: {
+    type: String,
+    required: true
+  },
+  tasks: [{
+    description: {
+      type: String,
+      required: true
+    }
+  }],
+  isCompleted: {
+    type: Boolean,
+    default: false
+  }
+}, { _id: true });
+
+const specialRequirementSchema = new mongoose.Schema({
+  roomType: {
+    type: String,
+  },
+  tasks: [{
+    description: {
+      type: String,
+    }
+  }],
+  isCompleted: {
+    type: Boolean,
+    default: false
+  }
+}, { _id: true });
+
 const propertySchema = new mongoose.Schema({
   propertyId: {
     type: String,
     required: true,
     unique: true
   },
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  address: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  type: {
-    type: String,
-    enum: ['apartment', 'house', 'office'],
-    required: true
-  },
-  squareFootage: {
-    type: Number,
-    required: true
-  },
-  manual: {
-    title: {
-      type: String,
-      default: 'Live Cleaning & Maintenance Manual'
-    },
-    content: {
-      type: String,
-      required: true
-    },
-    lastUpdated: {
-      type: Date,
-      default: Date.now
-    }
-  },
-
-  roomTasks: [roomTaskSchema],
-
+  requirements: [RequirementSchema],
+  specialRequirement: [specialRequirementSchema],
   scheduledTime: Date,
- 
-  customer: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
 
   assignedTo: {
     type: mongoose.Schema.Types.ObjectId,
@@ -151,9 +122,7 @@ const propertySchema = new mongoose.Schema({
 
   aiFeedback: [aiFeedbackSchema],
 
-  startedAt: Date,
-
-  completedAt: Date,
+  chatHistory:String,
 
   isActive: {
     type: Boolean,

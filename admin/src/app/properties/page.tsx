@@ -258,11 +258,11 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
     propertyId: '',
     name: '',
     address: '',
-    type: 'apartment' as 'apartment' | 'house' | 'office',
+    type: '',
     squareFootage: '',
-    rooms: '1',
-    bathrooms: '1',
-    estimatedTime: '60', // in minutes
+    cycle: '',
+    isActive: false,
+    customer: '',
     manual: {
       title: 'Live Cleaning & Maintenance Manual',
       content: ''
@@ -280,13 +280,9 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
       address: formData.address,
       type: formData.type,
       squareFootage: parseInt(formData.squareFootage) || 0,
-      rooms: parseInt(formData.rooms) || 1,
-      bathrooms: parseInt(formData.bathrooms) || 1,
-      estimatedTime: `${formData.estimatedTime} minutes`,
-      manual: {
-        ...formData.manual,
-        content: formData.manual.content || `Live Cleaning & Maintenance Manual\n${formData.address}\nProperty Overview\n- Property ID: ${formData.propertyId}\n- Type: ${formData.type}\n- Square Footage: ${formData.squareFootage} sq ft`
-      },
+      cycle: formData.cycle,
+      isActive: formData.isActive,
+      customer: formData.customer,
       roomTasks: []
     };
     
@@ -332,15 +328,13 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-              <select
+              <input
+                type="text"
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as 'apartment' | 'house' | 'office' })}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                placeholder="Enter property type"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="apartment">Apartment</option>
-                <option value="house">House</option>
-                <option value="office">Office</option>
-              </select>
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Square Footage</label>
@@ -352,6 +346,32 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
                 required
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cleaning Cycle
+              </label>
+              <input
+                type="text"
+                value={formData.cycle || ''}
+                onChange={(e) => setFormData({ ...formData, cycle: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Customer ID */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Customer ID
+              </label>
+              <input
+                type="text"
+                value={formData.customer}
+                onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+
           </div>
           <div className="flex justify-end space-x-3 pt-4">
             <button

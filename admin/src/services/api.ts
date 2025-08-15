@@ -54,45 +54,26 @@ api.interceptors.response.use(
 
 // Property types based on your backend schema
 export interface Property {
-  _id?: string;
+  _id: string;
   propertyId: string;
   name: string;
   address: string;
   type: 'apartment' | 'house' | 'office';
-  rooms: number;
-  bathrooms: number;
   squareFootage: number;
-  estimatedTime: string;
-  manual: {
-    title: string;
-    content: string;
-    lastUpdated?: Date;
-  };
+  cycle?: string;
+  isActive: boolean;
+  customer?: string;
   roomTasks: Array<{
     roomType: string;
     tasks: Array<{
       description: string;
       isCompleted: boolean;
-      estimatedTime: string;
-      specialNotes?: string;
+      Regular?: string;
     }>;
-    specialInstructions: string[];
-    fragileItems: string[];
   }>;
-  instructions?: string;
-  specialRequirements?: string[];
-  owner?: {
-    name: string;
-    email: string;
-    phone: string;
-  };
-  isActive: boolean;
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: string;
 }
 
 export interface CreatePropertyRequest {
@@ -100,35 +81,37 @@ export interface CreatePropertyRequest {
   name: string;
   address: string;
   type: 'apartment' | 'house' | 'office';
-  rooms: number;
-  bathrooms: number;
   squareFootage: number;
-  estimatedTime: string;
-  manual: {
-    title: string;
-    content: string;
-  };
+  cycle?: string;
+  isActive?: boolean;
+  customer?: string;  
   roomTasks: Array<{
     roomType: string;
     tasks: Array<{
       description: string;
-      estimatedTime: string;
-      specialNotes?: string;
+      isCompleted?: boolean;
+      Regular?: string;
     }>;
-    specialInstructions: string[];
-    fragileItems: string[];
   }>;
-  instructions?: string;
-  specialRequirements?: string[];
-  owner?: {
-    name: string;
-    email: string;
-    phone: string;
-  };
 }
 
-export interface UpdatePropertyRequest extends Partial<CreatePropertyRequest> {
+export interface UpdatePropertyRequest {
+  name?: string;
+  propertyId?: string;
+  address?: string;
+  type?: 'apartment' | 'house' | 'office';
+  squareFootage?: number;
+  cycle?: string;
+  customer?: string;  
   isActive?: boolean;
+  roomTasks?: Array<{
+    roomType: string;
+    tasks: Array<{
+      description: string;
+      isCompleted?: boolean;
+      Regular?: string;
+    }>;
+  }>;
 }
 
 // Property API functions

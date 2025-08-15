@@ -212,51 +212,38 @@ const initializeDatabase = async () => {
         {
           roomType: 'bedroom',
           tasks: [
-            { description: 'make the bed'},
-            { description: 'Clean floor'}
+            { description: 'make the bed', Regular: 'week' },
+            { description: 'Clean floor', Regular: 'week' }
           ],
-          estimatedTime: '45 minutes',
-          specialInstructions: ['Use granite-safe cleaner only.'],
-          isCompleted: false
         },
         {
           roomType: 'bathroom',
           tasks: [
-            { description: 'clean the floor'},
+            { description: 'clean the floor', Regular: '2week' },
           ],
-          estimatedTime: '30 minutes',
-          specialInstructions: ['Grout needs extra attention this week.'],
-          isCompleted: false
         },
       ],
-      scheduledTime: new Date(new Date().setDate(new Date().getDate() + 2)),
-      customer: customer._id,
-      assignedTo: cleaner._id,
-      photos: [
-      ],
-      issues: [
-      ],
-      aiFeedback: [], // Initially empty
+      customer: "64b5f1f0e3a3c2a1b0c4d5e6", // <-- must be 24-char hex string
+      cycle: 'weekly',
       isActive: true,
     });
-
     // Save the sample property
     await sampleProperty.save();
     console.log('✅ Sample property created successfully.');
 
     // Add AI feedback related to an issue
-    const savedProperty = await Property.findOne({ propertyId: 'EO-1208-RDU' });
-    if (savedProperty && savedProperty.issues.length > 0) {
-      const issueId = savedProperty.issues[0]._id;
-      savedProperty.aiFeedback.push({
-        issueId: issueId,
-        feedback: 'The stain appears to be oil-based. A specialized solvent may be required.',
-        confidence: 0.85,
-        suggestions: ['Try using a mix of baking soda and vinegar.', 'Blot, do not rub the stain.'],
-      });
-      await savedProperty.save();
-      console.log('✅ AI feedback added to the sample property.');
-    }
+    // const savedProperty = await Property.findOne({ propertyId: 'EO-1208-RDU' });
+    // if (savedProperty && savedProperty.issues.length > 0) {
+    //   const issueId = savedProperty.issues[0]._id;
+    //   savedProperty.aiFeedback.push({
+    //     issueId: issueId,
+    //     feedback: 'The stain appears to be oil-based. A specialized solvent may be required.',
+    //     confidence: 0.85,
+    //     suggestions: ['Try using a mix of baking soda and vinegar.', 'Blot, do not rub the stain.'],
+    //   });
+    //   await savedProperty.save();
+    //   console.log('✅ AI feedback added to the sample property.');
+    // }
 
   } catch (error) {
     console.error('❌ Error initializing sample data:', error);

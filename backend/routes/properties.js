@@ -20,10 +20,6 @@ router.patch('/:id/toggle-status', propertyController.togglePropertyStatus);
 router.patch('/:propertyId/room-tasks/:roomType/:taskIndex/status', propertyController.updateRoomTaskStatus);
 router.patch('/:propertyId/room-tasks/:roomType/notes', propertyController.updateRoomTaskNotes);
 
-// Photos & issues
-router.post('/:propertyId/photos', propertyController.addPropertyPhoto);
-router.post('/:propertyId/issues', propertyController.addPropertyIssue);
-
 // Stats
 router.get('/stats', propertyController.getPropertyStats);
 

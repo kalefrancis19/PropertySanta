@@ -10,13 +10,13 @@ import Link from 'next/link';
 
 interface Task {
   description: string;
+  Regular?: string;
+  isCompleted?: boolean;
 }
 
 interface RoomTask {
   roomType: string;
-  estimatedTime: string; // e.g. "15 minutes"
   tasks: Task[];
-  specialInstructions: string[];
 }
 
 interface FormData {
@@ -25,6 +25,8 @@ interface FormData {
   address: string;
   type: 'apartment' | 'house' | 'office';
   squareFootage: string;
+  cycle?: string;
+  isActive: boolean;
   roomTasks: RoomTask[];
 }
 
@@ -38,18 +40,21 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
 
   const [property, setProperty] = useState<PropertyWithoutExtra | null>(null);
   const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState<FormData & { customer: string }>({
     name: '',
     propertyId: '',
     address: '',
     type: 'apartment',
     squareFootage: '0',
+    cycle: '',
+    isActive: true,
+    customer: '',
     roomTasks: []
   });
 
   const [newRoomType, setNewRoomType] = useState('');
   const [newTask, setNewTask] = useState<Pick<Task, 'description'>>({ description: '' });
-  const [newSpecialInstruction, setNewSpecialInstruction] = useState('');
+
 
   useEffect(() => {
     const fetchProperty = async () => {
@@ -65,11 +70,9 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
 
         const roomTasksTransformed: RoomTask[] = (data.roomTasks || []).map(room => ({
           roomType: room.roomType,
-          estimatedTime: room.estimatedTime || 'not set',
           tasks: (room.tasks || []).map(task => ({
             description: task.description
-          })),
-          specialInstructions: room.specialInstructions || []
+          }))
         }));
 
         setProperty({
@@ -83,6 +86,9 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
           address: data.address || '',
           type: data.type || 'apartment',
           squareFootage: data.squareFootage?.toString() || '0',
+          cycle: data.cycle || '',
+          isActive: data.isActive !== undefined ? data.isActive : true,
+          customer: typeof data.customer === 'string' ? data.customer : data.customer?._id || '',
           roomTasks: roomTasksTransformed
         });
       } catch (error: any) {
@@ -107,13 +113,17 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
         address: formData.address,
         type: formData.type,
         squareFootage: parseInt(formData.squareFootage, 10) || 0,
+        cycle: formData.cycle,
+        isActive: formData.isActive,
+        customer: formData.customer || undefined,
         roomTasks: formData.roomTasks.map(room => ({
           roomType: room.roomType,
           tasks: room.tasks.map(task => ({
-            description: task.description
+            description: task.description,
+            Regular: task.Regular,
+            isCompleted: task.isCompleted || false
           })),
-          estimatedTime: room.estimatedTime,
-          specialInstructions: room.specialInstructions
+
         }))
       };
 
@@ -131,9 +141,7 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
 
     const newRoom: RoomTask = {
       roomType: newRoomType,
-      estimatedTime: '15 minutes',
-      tasks: [],
-      specialInstructions: []
+      tasks: []
     };
 
     setFormData(prev => ({
@@ -155,22 +163,32 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
     if (!newTask.description.trim()) return;
 
     const updatedRooms = [...formData.roomTasks];
-    updatedRooms[roomIndex].tasks.push({ description: newTask.description });
+    updatedRooms[roomIndex].tasks.push({ 
+      description: newTask.description,
+      Regular: '',
+      isCompleted: false
+    });
 
     setFormData(prev => ({ ...prev, roomTasks: updatedRooms }));
     setNewTask({ description: '' });
   };
 
-  const updateTask = (roomIndex: number, taskIndex: number, value: string) => {
+  const toggleTaskStatus = (roomIndex: number, taskIndex: number) => {
     const updatedRooms = [...formData.roomTasks];
-    updatedRooms[roomIndex].tasks[taskIndex].description = value;
-
+    updatedRooms[roomIndex].tasks[taskIndex].isCompleted = 
+      !updatedRooms[roomIndex].tasks[taskIndex].isCompleted;
     setFormData(prev => ({ ...prev, roomTasks: updatedRooms }));
   };
 
-  const updateRoomTime = (roomIndex: number, time: string) => {
+  const updateTaskRegular = (roomIndex: number, taskIndex: number, value: string) => {
     const updatedRooms = [...formData.roomTasks];
-    updatedRooms[roomIndex].estimatedTime = time || '15';
+    updatedRooms[roomIndex].tasks[taskIndex].Regular = value;
+    setFormData(prev => ({ ...prev, roomTasks: updatedRooms }));
+  };
+
+  const updateTask = (roomIndex: number, taskIndex: number, value: string) => {
+    const updatedRooms = [...formData.roomTasks];
+    updatedRooms[roomIndex].tasks[taskIndex].description = value;
 
     setFormData(prev => ({ ...prev, roomTasks: updatedRooms }));
   };
@@ -182,24 +200,7 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
     setFormData(prev => ({ ...prev, roomTasks: updatedRooms }));
   };
 
-  const addSpecialInstruction = (roomIndex: number) => {
-    if (!newSpecialInstruction.trim()) return;
 
-    const updatedRooms = [...formData.roomTasks];
-    updatedRooms[roomIndex].specialInstructions.push(newSpecialInstruction);
-
-    setFormData(prev => ({ ...prev, roomTasks: updatedRooms }));
-    setNewSpecialInstruction('');
-  };
-
-  const removeSpecialInstruction = (roomIndex: number, instructionIndex: number) => {
-    const updatedRooms = [...formData.roomTasks];
-    updatedRooms[roomIndex].specialInstructions = updatedRooms[roomIndex].specialInstructions.filter(
-      (_, i) => i !== instructionIndex
-    );
-
-    setFormData(prev => ({ ...prev, roomTasks: updatedRooms }));
-  };
 
   if (loading) {
     return (
@@ -322,6 +323,48 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
+
+            {/* Cycle */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cleaning Cycle
+              </label>
+              <input
+                type="text"
+                value={formData.cycle || ''}
+                onChange={(e) => setFormData({ ...formData, cycle: e.target.value })}
+                placeholder="e.g., Weekly, Bi-weekly, Monthly"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Customer ID */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Customer ID
+              </label>
+              <input
+                type="text"
+                value={formData.customer}
+                onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                placeholder="Enter customer ID"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Active Status */}
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="isActive" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                Property is Active
+              </label>
+            </div>
           </div>
 
           {/* Room Tasks Section */}
@@ -366,15 +409,36 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
                     <h4 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-2">Tasks</h4>
                     <div className="space-y-2 mb-4">
                       {room.tasks.map((task, taskIndex) => (
-                        <div key={taskIndex} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-3 rounded">
-                          <p className="text-gray-900 dark:text-white">{task.description}</p>
-                          <button
-                            type="button"
-                            onClick={() => removeTask(roomIndex, taskIndex)}
-                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                          >
-                            Remove
-                          </button>
+                        <div key={taskIndex} className="flex flex-col space-y-2 bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={task.isCompleted || false}
+                                onChange={() => toggleTaskStatus(roomIndex, taskIndex)}
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                              />
+                              <span className={`${task.isCompleted ? 'line-through text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                                {task.description}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeTask(roomIndex, taskIndex)}
+                              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 ml-2"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div>
+                            <input
+                              type="text"
+                              value={task.Regular || ''}
+                              onChange={(e) => updateTaskRegular(roomIndex, taskIndex, e.target.value)}
+                              placeholder="Regular maintenance notes"
+                              className="w-full px-2 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -397,54 +461,6 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
                       </button>
                     </div>
 
-                    {/* Estimated Time */}
-                    <div className="mt-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Estimated Time (minutes)
-                      </label>
-                      <input
-                        type="text"
-                        value={room.estimatedTime}
-                        onChange={(e) => updateRoomTime(roomIndex, e.target.value)}
-                        placeholder="e.g. 15 minutes"
-                        className="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Special Instructions */}
-                  <div className="mb-4">
-                    <h4 className="text-md font-medium text-gray-700 dark:text-gray-300 mb-2">Special Instructions</h4>
-                    <ul className="list-disc list-inside mb-2 space-y-1">
-                      {room.specialInstructions.map((instruction, idx) => (
-                        <li key={idx} className="flex justify-between items-center">
-                          <span className="text-gray-700 dark:text-gray-300">{instruction}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeSpecialInstruction(roomIndex, idx)}
-                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 ml-2"
-                          >
-                            ×
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newSpecialInstruction}
-                        onChange={(e) => setNewSpecialInstruction(e.target.value)}
-                        placeholder="Add special instruction"
-                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => addSpecialInstruction(roomIndex)}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
-                      >
-                        Add
-                      </button>
-                    </div>
                   </div>
                 </div>
               ))}

@@ -1,19 +1,24 @@
 const Property = require('../models/Property');
+const mongoose = require('mongoose');
 
-// Get all properties
+/**
+ * Get all properties
+ */
 const getAllProperties = async (req, res) => {
   try {
-    const properties = await Property.find({}).sort({ createdAt: -1 });
+    const properties = await Property.find({}).sort({ createdAt: -1 }).populate('customer', 'name email');
     res.json({ success: true, properties });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching properties', error: error.message });
   }
 };
 
-// Get property by ID
+/**
+ * Get property by ID
+ */
 const getPropertyById = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
+    const property = await Property.findById(req.params.id).populate('customer', 'name email');
     if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
     res.json({ success: true, property });
   } catch (error) {
@@ -21,36 +26,44 @@ const getPropertyById = async (req, res) => {
   }
 };
 
-// Create new property
+/**
+ * Create new property
+ */
 const createProperty = async (req, res) => {
   try {
-    const { propertyId, name, address, type, rooms, bathrooms, squareFootage, estimatedTime, manual, roomTasks, instructions, specialRequirements, owner } = req.body;
-    
-    if (!propertyId || !name || !address || !type || !rooms || !bathrooms || !squareFootage || !estimatedTime) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    const { propertyId, name, address, type, squareFootage, roomTasks, customer, cycle, isActive } = req.body;
+
+    // Validate required fields
+    if (!propertyId || !name || !address || !type || squareFootage === undefined) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields. Required: propertyId, name, address, type, squareFootage' 
+      });
     }
 
+    // Check for existing property
     const existingProperty = await Property.findOne({ propertyId });
-    if (existingProperty) return res.status(400).json({ success: false, message: 'Property ID already exists' });
+    if (existingProperty) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Property ID already exists' 
+      });
+    }
 
+    // Create property with all required fields
     const property = new Property({
       propertyId,
       name,
       address,
       type,
-      rooms,
-      bathrooms,
-      squareFootage,
-      estimatedTime,
-      manual: manual || {
+      squareFootage: Number(squareFootage) || 0,
+      roomTasks: Array.isArray(roomTasks) ? roomTasks : [],
+      customer: customer || null,
+      cycle: cycle || null,
+      manual: {
         title: 'Live Cleaning & Maintenance Manual',
-        content: `Live Cleaning & Maintenance Manual\n${address}\nProperty Overview\n- Property ID: ${propertyId}\n- Type: ${type}\n- Square Footage: ${squareFootage} sq ft\n- Estimated Time: ${estimatedTime}`
-      },
-      roomTasks: roomTasks || [],
-      instructions,
-      specialRequirements,
-      owner,
-      isActive: true
+        content: `Live Cleaning & Maintenance Manual\n${address}\nProperty Overview\n- Property ID: ${propertyId}\n- Type: ${type}\n- Square Footage: ${squareFootage} sq ft`
+      }
     });
 
     const savedProperty = await property.save();
@@ -60,7 +73,9 @@ const createProperty = async (req, res) => {
   }
 };
 
-// Update property
+/**
+ * Update property
+ */
 const updateProperty = async (req, res) => {
   try {
     const property = await Property.findById(req.params.id);
@@ -70,6 +85,11 @@ const updateProperty = async (req, res) => {
       if (key !== '_id' && key !== '__v') property[key] = req.body[key];
     });
 
+    // Validate customer ObjectId if updated
+    // if (req.body.customer && !mongoose.Types.ObjectId.isValid(req.body.customer)) {
+    //   return res.status(400).json({ success: false, message: 'Invalid customer ID' });
+    // }
+
     const updatedProperty = await property.save();
     res.json({ success: true, property: updatedProperty });
   } catch (error) {
@@ -77,7 +97,9 @@ const updateProperty = async (req, res) => {
   }
 };
 
-// Delete property
+/**
+ * Delete property
+ */
 const deleteProperty = async (req, res) => {
   try {
     const property = await Property.findById(req.params.id);
@@ -90,7 +112,9 @@ const deleteProperty = async (req, res) => {
   }
 };
 
-// Get property manual
+/**
+ * Get property manual
+ */
 const getPropertyManual = async (req, res) => {
   try {
     const property = await Property.findById(req.params.id);
@@ -101,7 +125,9 @@ const getPropertyManual = async (req, res) => {
   }
 };
 
-// Update property manual
+/**
+ * Update property manual
+ */
 const updatePropertyManual = async (req, res) => {
   try {
     const { manual } = req.body;
@@ -120,7 +146,9 @@ const updatePropertyManual = async (req, res) => {
   }
 };
 
-// Toggle property active status
+/**
+ * Toggle property active status
+ */
 const togglePropertyStatus = async (req, res) => {
   try {
     const property = await Property.findById(req.params.id);
@@ -134,7 +162,9 @@ const togglePropertyStatus = async (req, res) => {
   }
 };
 
-// Update roomTask status
+/**
+ * Update roomTask status
+ */
 const updateRoomTaskStatus = async (req, res) => {
   try {
     const { propertyId, roomType, taskIndex } = req.params;
@@ -153,39 +183,9 @@ const updateRoomTaskStatus = async (req, res) => {
   }
 };
 
-// Add photo to property
-const addPropertyPhoto = async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-    const { url, type, notes, localPath, tags } = req.body;
-    const property = await Property.findById(propertyId);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
-
-    property.photos.push({ url, type, notes, localPath, tags });
-    await property.save();
-    res.json({ success: true, message: 'Photo added', data: property });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error', error: error.message });
-  }
-};
-
-// Add issue to property
-const addPropertyIssue = async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-    const { type, description, photoId, location, notes } = req.body;
-    const property = await Property.findById(propertyId);
-    if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
-
-    property.issues.push({ type, description, photoId, location, notes });
-    await property.save();
-    res.json({ success: true, message: 'Issue added', data: property });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error', error: error.message });
-  }
-};
-
-// Update notes for a roomTask
+/**
+ * Update notes for a roomTask
+ */
 const updateRoomTaskNotes = async (req, res) => {
   try {
     const { propertyId, roomType } = req.params;
@@ -204,7 +204,9 @@ const updateRoomTaskNotes = async (req, res) => {
   }
 };
 
-// Get stats for all properties/roomTasks
+/**
+ * Get stats for all properties/roomTasks
+ */
 const getPropertyStats = async (req, res) => {
   try {
     const properties = await Property.find({});
@@ -240,8 +242,6 @@ module.exports = {
   updatePropertyManual,
   togglePropertyStatus,
   updateRoomTaskStatus,
-  addPropertyPhoto,
-  addPropertyIssue,
   updateRoomTaskNotes,
   getPropertyStats
 };
