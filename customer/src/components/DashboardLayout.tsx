@@ -7,16 +7,14 @@ import {
   Home, 
   Calendar, 
   Settings,
-  FileBarChart,
+  FileText,
   MessageCircle,
   BarChart3,
   LogOut,
   User,
   Bell,
   Sun,
-  Moon,
-  Package,
-  ShoppingCart,
+  Moon
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -28,40 +26,34 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const [activeSection, setActiveSection] = useState(() => {
-    if (pathname === '/') return 'dashboard';
+    if (pathname === '/dashboard') return 'overview';
     if (pathname === '/properties') return 'properties';
     if (pathname === '/tasks') return 'tasks';
     if (pathname === '/reports') return 'reports';
-    if (pathname === '/inventory') return 'inventory';
-    if (pathname === '/messages') return 'messages';
-    if (pathname === '/cleaners') return 'cleaners';
-    if (pathname === '/orders') return 'orders';
-
+    if (pathname === '/support') return 'support';
     if (pathname === '/settings') return 'settings';
-    return 'dashboard';
+    return 'overview';
   });
 
   const navigationItems = [
-    { id: 'dashboard', name: 'Dashboard', icon: BarChart3, href: '/' },
-    { id: 'properties', name: 'Properties', icon: Home, href: '/properties' },
-    { id: 'tasks', name: 'Tasks', icon: Calendar, href: '/tasks' },
-    { id: 'reports', name: 'Reports', icon: FileBarChart, href: '/reports' },
-    { id: 'inventory', name: 'Inventory', icon: Package, href: '/inventory' },
-    { id: 'messages', name: 'Messages', icon: MessageCircle, href: '/messages' },
-    { id: 'cleaners', name: 'Cleaners', icon: User, href: '/cleaners' },
-    { id: 'orders', name: 'Orders', icon: ShoppingCart, href: '/orders' },
+    { id: 'overview', name: 'Dashboard', icon: BarChart3, href: '/dashboard' },
+    { id: 'properties', name: 'My Properties', icon: Home, href: '/properties' },
+    { id: 'tasks', name: 'Cleaning Tasks', icon: Calendar, href: '/tasks' },
+    { id: 'reports', name: 'Cleaning Reports', icon: FileText, href: '/reports' },
+    { id: 'support', name: 'Support', icon: MessageCircle, href: '/support' },
     { id: 'settings', name: 'Settings', icon: Settings, href: '/settings' },
   ];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center px-6 py-4">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <Home className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">Admin Portal</span>
+            <span className="text-xl font-bold text-gray-900 dark:text-white">Customer Dashboard</span>
           </div>
           
           <div className="flex items-center space-x-4">
@@ -85,13 +77,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
                 <User className="h-5 w-5 text-primary-600 dark:text-primary-400" />
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Admin</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">John Smith</span>
             </div>
           </div>
         </div>
       </header>
 
       <div className="flex">
+        {/* Sidebar */}
         <aside className="w-64 bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 min-h-screen">
           <nav className="p-4">
             <div className="space-y-2">
@@ -125,6 +118,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </nav>
         </aside>
 
+        {/* Main Content */}
         <main className="flex-1 p-6">
           {children}
         </main>

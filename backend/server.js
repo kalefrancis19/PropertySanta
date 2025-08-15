@@ -137,8 +137,8 @@ const initializeDatabase = async () => {
       name: 'Admin User',
       email: 'admin@propertysanta.com',
       password: 'admin123',
-      role: 'admin',
-      isActive: true
+      phone: '+1 (555) 555-5555',
+      role: 'admin'
     });
 
     const cleanerUser = await createUserIfNotExists('elite@gmail.com', {

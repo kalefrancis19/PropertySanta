@@ -1,224 +1,194 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  Eye, 
-  EyeOff, 
   Home, 
-  Shield, 
-  Sparkles,
-  Sun,
-  Moon
+  Menu, 
+  Moon, 
+  Sun, 
+  CheckCircle, 
+  FileText,
+  Activity,
+  Clock
 } from 'lucide-react';
-import { useTheme } from '@/components/ThemeProvider';
+import { propertyAPI, Property } from '@/services/api';
+import DashboardLayout from '@/components/DashboardLayout';
 
-export default function HomePage() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { theme, toggleTheme } = useTheme();
+export default function DashboardPage() {
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    // Simulate login process
-    setTimeout(() => {
-      setIsLoading(false);
-      window.location.href = '/dashboard';
-    }, 1000);
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      // Only fetch properties, not tasks
+      const propertiesData = await propertyAPI.getAll();
+      
+      console.log('Fetched properties:', propertiesData);
+      
+      setProperties(propertiesData);
+      
+      // Log property task completion status
+      propertiesData.forEach((property, index) => {
+        const completed = property.roomTasks.reduce((count, roomTask) => {
+          return count + roomTask.tasks.filter(task => task.isCompleted).length;
+        }, 0);
+        const total = property.roomTasks.reduce((count, roomTask) => {
+          return count + roomTask.tasks.length;
+        }, 0);
+        console.log(`Property ${index + 1} (${property.name}): ${completed}/${total} tasks completed`);
+      });
+      
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+
+
+  // Log the raw property data first
+  console.log('\n=== RAW PROPERTIES DATA ===');
+  console.log(JSON.stringify(properties, null, 2));
+  
+  // Process properties (no status added, we'll categorize them directly)
+  const processedProperties = [...properties];
+  
+  // Categorize properties based on room-level completion
+  // 1. Not Started: No rooms are marked as completed
+  // 2. In Progress: Some but not all rooms are completed
+  // 3. Completed: All rooms are marked as completed
+  
+  const notStartedProperties = processedProperties.filter(property => {
+    if (!property.isActive) return false;
+    
+    // Check if any room is marked as completed
+    const hasCompletedRooms = property.roomTasks.some(room => 
+      room.isCompleted
+    );
+    
+    return !hasCompletedRooms;
+  });
+  
+  const completedProperties = processedProperties.filter(property => {
+    // Check if all rooms are marked as completed
+    const allRoomsCompleted = property.roomTasks.length > 0 && 
+      property.roomTasks.every(room => room.isCompleted);
+    
+    return allRoomsCompleted;
+  });
+  
+  // In Progress properties have some but not all rooms completed
+  const inProgressProperties = processedProperties.filter(property => {
+    if (!property.isActive) return false;
+    if (notStartedProperties.includes(property) || completedProperties.includes(property)) {
+      return false;
+    }
+    
+    const hasSomeCompletedRooms = property.roomTasks.some(room => room.isCompleted);
+    
+    return hasSomeCompletedRooms;
+  });
+
+  
+  // Detailed status for each property
+  processedProperties.forEach((property: Property) => {
+    let status = 'Unknown';
+    if (notStartedProperties.includes(property as any)) {
+      status = 'Not Started';
+    } else if (inProgressProperties.includes(property as any)) {
+      status = 'In Progress';
+    } else if (completedProperties.includes(property as any)) {
+      status = 'Completed';
+    }
+    
+    property.roomTasks?.forEach((roomTask, index) => {
+      const completedTasks = roomTask.tasks?.filter(task => task.isCompleted).length || 0;
+      const totalTasks = roomTask.tasks?.length || 0;
+    });
+  });
+  
+  // Total number of properties (both active and inactive)
+  const totalProperties = processedProperties.length;
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
-      {/* Header */}
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-xl flex items-center justify-center">
-                <Home className="h-6 w-6 text-primary-600 dark:text-primary-400" />
-              </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent">
-                PropertySanta
-              </span>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={toggleTheme}
-                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                {theme === 'light' ? (
-                  <Moon className="h-5 w-5" />
-                ) : (
-                  <Sun className="h-5 w-5" />
-                )}
-              </button>
-              
-              <a 
-                href="/admin/login"
-                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-              >
-                <Shield className="h-4 w-4" />
-                <span>Admin Portal</span>
-              </a>
-            </div>
-          </div>
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400">Overview of cleaning progress and schedules</p>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
-        <div className="max-w-md w-full space-y-6">
-          {/* Hero Section */}
-          <div className="text-center">
-            <div className="mx-auto h-20 w-20 bg-gradient-to-br from-primary-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-              <Home className="h-10 w-10 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
-              Welcome to PropertySanta
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Smart cleaning insights and intelligent task management
-            </p>
-          </div>
-
-          {/* Login Form */}
-          <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 p-8">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                Sign In
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Access your property dashboard
-              </p>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                  placeholder="Enter your email"
-                />
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Properties</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalProperties}</p>
               </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors pr-12"
-                    placeholder="Enter your password"
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    id="remember-me"
-                    name="remember-me"
-                    type="checkbox"
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                  />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                    Remember me
-                  </label>
-                </div>
-
-                <div className="text-sm">
-                  <a href="#" className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-500 dark:hover:text-primary-300">
-                    Forgot password?
-                  </a>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full flex justify-center items-center space-x-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gradient-to-r from-primary-600 to-blue-600 hover:from-primary-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Signing in...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      <span>Sign in to Dashboard</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300 dark:border-gray-600" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white/80 dark:bg-gray-900/80 text-gray-500 dark:text-gray-400">New to PropertySanta?</span>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <button className="w-full flex justify-center items-center space-x-2 py-3 px-4 border border-primary-300 dark:border-primary-600 rounded-xl shadow-sm text-sm font-medium text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors">
-                  <span>Create Account</span>
-                </button>
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center">
+                <Home className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
           </div>
 
-          {/* Features */}
-          <div className="text-center">
-            <div className="grid grid-cols-3 gap-4 text-xs text-gray-500 dark:text-gray-400">
-              <div className="flex flex-col items-center space-y-1">
-                <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-primary-600 dark:text-primary-400" />
-                </div>
-                <span>AI Insights</span>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pending</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{notStartedProperties.length}</p>
               </div>
-              <div className="flex flex-col items-center space-y-1">
-                <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center">
-                  <Home className="h-4 w-4 text-primary-600 dark:text-primary-400" />
-                </div>
-                <span>Smart Management</span>
+              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center">
+                <Clock className="h-6 w-6 text-gray-600 dark:text-gray-300" />
               </div>
-              <div className="flex flex-col items-center space-y-1">
-                <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-primary-600 dark:text-primary-400" />
-                </div>
-                <span>Secure Platform</span>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">In Progress</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {inProgressProperties.length}
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900 rounded-xl flex items-center justify-center">
+                <Activity className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Completed</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{completedProperties.length}</p>
+              </div>
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 } 
