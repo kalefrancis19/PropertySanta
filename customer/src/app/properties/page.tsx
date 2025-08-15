@@ -121,8 +121,8 @@ export default function PropertiesPage() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Properties</h1>
-            <p className="text-gray-600 dark:text-gray-400">Manage customer's properties and cleaning manuals</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Properties</h1>
+            <p className="text-gray-600 dark:text-gray-400">Manage your properties and cleaning manuals</p>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
