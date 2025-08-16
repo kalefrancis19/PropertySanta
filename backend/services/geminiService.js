@@ -1,10 +1,14 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const Property = require('../models/Property');
+const { db } = require('../config/firebase');
+const { Timestamp } = require('firebase-admin/firestore');
+require('dotenv').config({ path: '../config.env' });
 
 class GeminiService {
   constructor() {
-    const API_KEY = 'AIzaSyDRUvyiwRgV4q86sRAei8U50Pc9UgZTzcM';
-    this.genAI = new GoogleGenerativeAI(API_KEY);
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not defined in the environment variables');
+    }
+    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
     this.useEnhancedMockData = false;
     this.resetContext();
@@ -222,19 +226,26 @@ class GeminiService {
         // Store in context
         this.context.photos.push(photoData);
         
-        // Save to MongoDB if we have a property ID
-        if (this.context.currentProperty?._id) {
+        if (this.context.currentProperty?.id) {
           try {
-            await Property.findByIdAndUpdate(
-              this.context.currentProperty._id,
-              {
-                $push: {
-                  photos: photoData
-                }
-              },
-              { new: true, runValidators: true }
-            );
-            console.log(`Saved ${detectedRoomType} before photo to MongoDB`);
+            const propertyRef = db.collection('properties').doc(this.context.currentProperty.id);
+            
+            await db.runTransaction(async (transaction) => {
+              const propertyDoc = await transaction.get(propertyRef);
+              if (!propertyDoc.exists) {
+                throw new Error('Property document does not exist!');
+              }
+              
+              const propertyData = propertyDoc.data();
+              const updatedPhotos = [...(propertyData.photos || []), photoData];
+              
+              transaction.update(propertyRef, {
+                photos: updatedPhotos,
+                updatedAt: Timestamp.now()
+              });
+            });
+            
+            console.log(`Saved ${detectedRoomType} before photo to Firestore`);
           } catch (error) {
             console.error('Failed to save before photo to MongoDB:', error);
           }
@@ -321,9 +332,10 @@ class GeminiService {
           this.context.scoring[detectedRoomType] = scoring;
           
           // Save analysis results to MongoDB if we have a property ID
-          if (this.context.currentProperty?._id) {
+          if (this.context.currentProperty?.id) {
             try {
-              const propertyId = this.context.currentProperty._id;
+              const propertyId = this.context.currentProperty.id; // Changed from id to id for Firestore
+              const propertyRef = db.collection('properties').doc(propertyId);
               
               // Create issues from scoring results
               const issues = [];
@@ -334,7 +346,8 @@ class GeminiService {
                   type: 'missed_requirement',
                   description: desc,
                   location: detectedRoomType,
-                  isResolved: false
+                  isResolved: false,
+                  createdAt: Timestamp.now()
                 })));
               }
               
@@ -344,7 +357,8 @@ class GeminiService {
                   type: 'needs_attention',
                   description: desc,
                   location: detectedRoomType,
-                  isResolved: false
+                  isResolved: false,
+                  createdAt: Timestamp.now()
                 })));
               }
               
@@ -358,22 +372,28 @@ class GeminiService {
                 confidence: scoring.confidence || 0.8,
                 suggestions: scoring.recommendations || [],
                 improvements: scoring.improvements || [],
-                timestamp: new Date(),
+                timestamp: Timestamp.now(),
                 roomType: detectedRoomType,
                 analysisType: 'after_cleaning'
               }];
               
-              // Update the property document
-              await Property.findByIdAndUpdate(
-                propertyId,
-                {
-                  $push: {
-                    issues: { $each: issues },
-                    aiFeedback: { $each: aiFeedback }
-                  }
-                },
-                { new: true, runValidators: true }
-              );
+              // Update the property document in Firestore
+              await db.runTransaction(async (transaction) => {
+                const propertyDoc = await transaction.get(propertyRef);
+                if (!propertyDoc.exists) {
+                  throw new Error('Property document does not exist!');
+                }
+                
+                const propertyData = propertyDoc.data();
+                const updatedIssues = [...(propertyData.issues || []), ...issues];
+                const updatedAiFeedback = [...(propertyData.aiFeedback || []), ...aiFeedback];
+                
+                transaction.update(propertyRef, {
+                  issues: updatedIssues,
+                  aiFeedback: updatedAiFeedback,
+                  updatedAt: Timestamp.now()
+                });
+              });
               
               console.log(`Saved analysis results for ${detectedRoomType} to property ${propertyId}`);
             } catch (error) {
@@ -407,44 +427,77 @@ class GeminiService {
           // Store in context
           this.context.photos.push(photoData);
           
-          // Save to MongoDB and update room task completion if we have a property ID
-          if (this.context.currentProperty?._id) {
+          // Save to Firestore and update room task completion if we have a property ID
+          if (this.context.currentProperty?.id) {
             try {
               // Update the property to add the photo and mark the room task as completed
-              await Property.findOneAndUpdate(
-                {
-                  _id: this.context.currentProperty._id,
-                  'roomTasks.roomType': detectedRoomType
-                },
-                {
-                  $push: {
-                    photos: photoData
-                  },
-                  $set: {
-                    'roomTasks.$.isCompleted': true,
-                    'roomTasks.$.completedAt': new Date()
-                  }
-                },
-                { new: true, runValidators: true }
-              );
+              const propertyRef = db.collection('properties').doc(this.context.currentProperty.id);
+              const now = Timestamp.now();
               
-              console.log(`Saved ${detectedRoomType} after photo and marked task as completed in MongoDB`);
-            } catch (error) {
-              console.error('Failed to save after photo or update task completion in MongoDB:', error);
-            }
+              await db.runTransaction(async (transaction) => {
+                const propertyDoc = await transaction.get(propertyRef);
+                if (!propertyDoc.exists) {
+                  throw new Error('Property document does not exist!');
+                }
+                
+                const propertyData = propertyDoc.data();
+                const updatedPhotos = [...(propertyData.photos || []), photoData];
+                
+                // Update room task completion status
+                const updatedRoomTasks = propertyData.roomTasks.map(task => {
+                  if (task.roomType === detectedRoomType) {
+                    return {
+                      ...task,
+                      isCompleted: true,
+                      completedAt: now
+                    };
+                  }
+                  return task;
+                });
+                
+                transaction.update(propertyRef, {
+                  photos: updatedPhotos,
+                  roomTasks: updatedRoomTasks,
+                  updatedAt: now
+                });
+              });  
+                
+                console.log(`Saved ${detectedRoomType} after photo and marked task as completed in Firestore`);
+              } catch (error) {
+                console.error('Failed to save after photo or update task completion in Firestore:', error);
+              }
           }
+          
+          // Debug logging for room tasks
+          console.log('=== ROOM TASKS DEBUG ===');
+          
+          console.log('Current Property ID:', this.context.currentProperty?.id || 'No property ID');
+          console.log('Current Property:', JSON.stringify(this.context.currentProperty, null, 2));
+          console.log('Room Tasks:', JSON.stringify(this.context.currentProperty?.roomTasks, null, 2));
           
           // Get all unique room types that need after photos
           const allRooms = [...new Set(currentProperty?.roomTasks?.map(rt => rt.roomType) || [])];
+          console.log('All Rooms from roomTasks:', allRooms);
           
           // Check if all rooms have after photos
           const roomsWithAfterPhotos = new Set(
-            this.context.afterPhotosLogged.map(photo => photo.split('-')[0])
+            this.context.afterPhotosLogged.map(photo => {
+              const room = photo.split('-')[0];
+              console.log(`After photo logged for room: ${room}`);
+              return room;
+            })
           );
           
-          const allAfterPhotosLogged = allRooms.every(room => 
-            roomsWithAfterPhotos.has(room.toLowerCase())
-          );
+          console.log('Rooms with after photos:', Array.from(roomsWithAfterPhotos));
+          
+          const allAfterPhotosLogged = allRooms.every(room => {
+            const hasPhoto = roomsWithAfterPhotos.has(room.toLowerCase());
+            console.log(`Room ${room} has after photo: ${hasPhoto}`);
+            return hasPhoto;
+          });
+          
+          console.log('All after photos logged:', allAfterPhotosLogged);
+          console.log('=== END DEBUG ===');
           
           // Format the scoring results for display
           const scorePercentage = Math.round(scoring.overallScore);

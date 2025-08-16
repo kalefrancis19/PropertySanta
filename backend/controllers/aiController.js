@@ -66,17 +66,62 @@ const chatWithAI = async (req, res) => {
 const handlePhotoUpload = async (req, res) => {
   try {
     const { photoBase64, photoType, roomType, propertyId, userMessage } = req.body;
+    
+    // Input validation
     if (!photoBase64) return res.status(400).json({ success: false, message: 'Photo data is required' });
-    if (!photoType || !roomType) return res.status(400).json({ success: false, message: 'Photo type and room type are required' });
+    if (!photoType || !roomType) return res.status(400).json({ 
+      success: false, 
+      message: 'Photo type and room type are required' 
+    });
+    if (!propertyId) return res.status(400).json({ 
+      success: false, 
+      message: 'Property ID is required' 
+    });
 
-    if (propertyId) {
-      const doc = await db.collection('properties').doc(propertyId).get();
-      const property = doc.exists ? { id: doc.id, ...doc.data() } : null;
-      if (property) geminiService.updateContext({ currentProperty: property });
+    console.log(`[Photo Upload] Property ID: ${propertyId}, Room: ${roomType}, Type: ${photoType}`);
+    
+    // Load property from Firestore
+    const doc = await db.collection('properties').doc(propertyId).get();
+    if (!doc.exists) {
+      console.error(`[Photo Upload] Property not found: ${propertyId}`);
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Property not found' 
+      });
     }
-
+    
+    // Prepare property data with ID
+    const property = { 
+      id: doc.id, 
+      ...doc.data(),
+      // Ensure roomTasks exists
+      roomTasks: doc.data().roomTasks || []
+    };
+    
+    console.log(`[Photo Upload] Loaded property: ${propertyId} with ${property.roomTasks?.length || 0} room tasks`);
+    
+    // Update context with the loaded property
+    geminiService.updateContext({ 
+      currentProperty: property,
+      // Preserve existing context or initialize if needed
+      photos: geminiService.context.photos || [],
+      completedTasks: geminiService.context.completedTasks || []
+    });
+    
+    console.log(`[Photo Upload] Context updated for property: ${propertyId}`);
+    
+    // Process the photo upload
     const result = await geminiService.handlePhotoUpload(photoBase64, photoType, roomType, userMessage);
-    res.json({ success: true, data: { ...result, workflowState: geminiService.context.workflowState } });
+    
+    // Return response with current state
+    res.json({ 
+      success: true, 
+      data: { 
+        ...result, 
+        workflowState: geminiService.context.workflowState,
+        propertyId: propertyId
+      } 
+    });
   } catch (error) {
     console.error('Photo upload error:', error);
     res.status(500).json({ success: false, message: 'Failed to process photo upload' });

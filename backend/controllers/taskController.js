@@ -38,6 +38,7 @@ const getAllTasksAdmin = async (req, res) => {
 // Authenticated user - Get all room tasks
 const getTasks = async (req, res) => {
   try {
+    console.log(req,'---------------------------------------------');
     const userId = req.user.id;
     const snapshot = await db.collection('properties').where('assignedTo', '==', userId).get();
     const userProperties = [];

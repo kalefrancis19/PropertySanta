@@ -207,11 +207,28 @@ export default function ChatPage() {
     // Add a small delay to make the typing animation more visible
     await new Promise(resolve => setTimeout(resolve, 500));
     
+    // Ensure we have a valid property ID
+    const propertyIdToUse = propertyId || currentProperty?._id;
+    if (!propertyIdToUse) {
+      console.error('No property ID available for chat');
+      addMessage('❌ Error: No property selected. Please select a property first.', 'system', 'system');
+      setIsTyping(false);
+      return;
+    }
+
+    console.log('Sending chat message with details:', {
+      hasMessage: !!userMessage,
+      propertyId: propertyIdToUse,
+      currentRoom,
+      completedTasksCount: completedTasks?.length || 0,
+      manualTipsCount: manualTips?.length || 0
+    });
+    
     try {
       // Call backend AI service
       const response = await apiService.chatWithAI({
         message: userMessage,
-        propertyId: currentProperty?._id,
+        propertyId: propertyIdToUse,
         roomType: currentRoom,
         completedTasks,
         manualTips
@@ -523,12 +540,27 @@ export default function ChatPage() {
       }
       
       try {
+        // Ensure we have a valid property ID
+        const propertyIdToUse = propertyId || currentProperty?._id;
+        if (!propertyIdToUse) {
+          console.error('No property ID available for photo upload');
+          addMessage('❌ Error: No property selected. Please select a property first.', 'system', 'system');
+          return;
+        }
+
+        console.log('Uploading photo with details:', {
+          photoType,
+          roomType,
+          propertyId: propertyIdToUse,
+          hasUserMessage: !!userMessage
+        });
+
         // Use new workflow photo upload endpoint with enhanced user message
         const response = await apiService.uploadPhotoWithWorkflow({
           photoBase64: selectedImage,
           photoType,
           roomType,
-          propertyId: currentProperty?._id || '',
+          propertyId: propertyIdToUse,
           userMessage: displayText // Pass the full user message for intelligent analysis
         });
         
