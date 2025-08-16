@@ -89,8 +89,7 @@ const RequirementSchema = new mongoose.Schema({
 const Taskschema = new mongoose.Schema({
   propertyId: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   requirements: [RequirementSchema],
 

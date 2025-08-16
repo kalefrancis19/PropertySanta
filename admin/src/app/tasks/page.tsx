@@ -2,9 +2,18 @@
 
 import { useState, useEffect, forwardRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { taskAPI, type Task, type CreateTaskRequest, type UpdateTaskRequest, userAPI, propertyAPI, type Property } from '@/services/api';
+import { taskAPI, type Task, type CreateTaskRequest as BaseCreateTaskRequest, type UpdateTaskRequest, userAPI, propertyAPI, type Property } from '@/services/api';
+
+// Extend the CreateTaskRequest type to include propertyInfo
+type CreateTaskRequest = BaseCreateTaskRequest & {
+  propertyInfo?: {
+    _id: string;
+    propertyId: string;
+    name: string;
+  };
+};
 import { format } from 'date-fns';
-import { Plus, Search, Calendar, User, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, Calendar, User, Trash2, Edit, Building } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 
 // Simple toast notification hook
@@ -174,20 +183,45 @@ export default function TasksPage() {
     isActive: 'true',
   });
   
-  const [cleaners, setCleaners] = useState<Array<{_id: string, name: string}>>([]);
-  const [properties, setProperties] = useState<Array<{_id: string, name: string, propertyId: string}>>([]);
+  const [cleaners, setCleaners] = useState<Array<{_id: string, name: string, role: string}>>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
+  const [customers, setCustomers] = useState<Record<string, {name: string, email: string}>>({});
   const [newTask, setNewTask] = useState<CreateTaskRequest>({
     propertyId: '',
-    requirements: [{
-      roomType: '',
-      tasks: [{ description: '' }]
-    }],
+    requirements: [],
     specialRequirement: '',
     scheduledTime: new Date(),
     assignedTo: '',
     isActive: true,
+    propertyInfo: undefined
   });
+
+  // Handle property selection
+  const handlePropertySelect = (propertyId: string) => {
+    const selectedProperty = properties.find(p => p.propertyId === propertyId);
+    if (selectedProperty) {
+      setNewTask(prev => ({
+        ...prev,
+        propertyId: selectedProperty._id, // Use the _id instead of propertyId
+        propertyInfo: {
+          _id: selectedProperty._id,
+          propertyId: selectedProperty.propertyId,
+          name: selectedProperty.name
+        },
+        requirements: (selectedProperty.roomTasks || []).map((room: { roomType: string; tasks: Array<{ description: string }> }) => ({
+          roomType: room.roomType,
+          isCompleted: false,
+          tasks: room.tasks.map((task: { description: string }) => ({
+            description: task.description,
+            isCompleted: false
+          }))
+        }))
+      }));
+    }
+  };
+
+
 
   // Fetch data (cleaners, properties, tasks, and user names)
   useEffect(() => {
@@ -195,22 +229,33 @@ export default function TasksPage() {
 
     const fetchData = async () => {
       try {
-        const [cleanersData, propertiesData, usersData] = await Promise.all([
+        const [cleanersData, propertiesData, tasksData, usersData] = await Promise.all([
           userAPI.getAll(),
           propertyAPI.getAll(),
+          taskAPI.getAll(),
           userAPI.getAll() // Fetch all users to get names
         ]);
+        
+        // Filter cleaners from all users
+        const filteredCleaners = usersData.filter((user: any) => user.role === 'cleaner');
 
         if (isMounted) {
-          setCleaners(cleanersData.filter((user: any) => user.role === 'cleaner'));
+          setCleaners(filteredCleaners);
           setProperties(propertiesData);
+          setTasks(tasksData);
           
-          // Create a mapping of user IDs to names
+          // Create a map of user IDs to names
           const namesMap: Record<string, string> = {};
+          const customersMap: Record<string, {name: string, email: string}> = {};
+          
           usersData.forEach((user: any) => {
             namesMap[user._id] = user.name;
+            if (user.role === 'customer') {
+              customersMap[user._id] = { name: user.name, email: user.email };
+            }
           });
           setUserNames(namesMap);
+          setCustomers(customersMap);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -269,32 +314,39 @@ export default function TasksPage() {
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (isEditing && currentTaskId) {
-        // For update, we need to ensure we only send the fields that can be updated
-        const { propertyId, ...updates } = newTask;
-        await taskAPI.update(currentTaskId, {
-          ...updates,
-          // Ensure requirements match the TaskRequirement interface
-          requirements: updates.requirements?.map(req => ({
-            ...req,
-            isCompleted: false, // Add isCompleted at the requirement level
-            tasks: req.tasks.map(t => ({
-              ...t,
-              isCompleted: false // Also include at task level if needed
-            }))
+      // Create task data with proper typing for both create and update
+      const taskData = {
+        ...newTask,
+        requirements: newTask.requirements.map(req => ({
+          roomType: req.roomType,
+          isCompleted: false,
+          tasks: req.tasks.map(t => ({
+            description: t.description,
+            isCompleted: false
           }))
-        } as UpdateTaskRequest);
+        }))
+      } as const;
+
+      if (isEditing && currentTaskId) {
+        await taskAPI.update(currentTaskId, {
+          requirements: taskData.requirements,
+          specialRequirement: taskData.specialRequirement,
+          scheduledTime: taskData.scheduledTime,
+          assignedTo: taskData.assignedTo,
+          isActive: taskData.isActive
+        });
         toast({
           title: 'Success',
           description: 'Task updated successfully',
         });
       } else {
-        await taskAPI.create(newTask);
+        await taskAPI.create(taskData);
         toast({
           title: 'Success',
           description: 'Task created successfully',
         });
       }
+      
       setIsTaskDialogOpen(false);
       // Refresh tasks
       const data = await taskAPI.getAll();
@@ -313,32 +365,27 @@ export default function TasksPage() {
   const resetForm = () => {
     setNewTask({
       propertyId: '',
-      requirements: [{
-        roomType: '',
-        tasks: [{ description: '' }]
-      }],
+      propertyInfo: undefined,
+      requirements: [],
       specialRequirement: '',
       scheduledTime: new Date(),
       assignedTo: '',
-      isActive: true,
+      isActive: true
     });
     setIsEditing(false);
     setCurrentTaskId(null);
   };
 
   const handleEditTask = (task: Task) => {
-    // Ensure requirements have the correct structure with isCompleted
-    const formattedRequirements = task.requirements.map(req => ({
-      roomType: req.roomType,
-      tasks: req.tasks.map(t => ({
-        description: t.description,
-        isCompleted: t.isCompleted || false
-      }))
-    }));
-
+    const property = properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId);
     setNewTask({
       propertyId: task.propertyId,
-      requirements: formattedRequirements,
+      propertyInfo: property ? {
+        _id: property._id,
+        propertyId: property.propertyId,
+        name: property.name
+      } : undefined,
+      requirements: task.requirements || [],
       specialRequirement: task.specialRequirement || '',
       scheduledTime: task.scheduledTime ? new Date(task.scheduledTime) : new Date(),
       assignedTo: typeof task.assignedTo === 'string' ? task.assignedTo : task.assignedTo?._id || '',
@@ -466,9 +513,9 @@ export default function TasksPage() {
                     <CardTitle className="text-lg font-medium">
                       Task #{task._id.slice(-6).toUpperCase()}
                     </CardTitle>
-                    <CardDescription className="mt-1">
+                    {/* <CardDescription className="mt-1">
                       Property: {task.propertyId}
-                    </CardDescription>
+                    </CardDescription> */}
                   </div>
                   <div className="flex items-center">
                     <div className={`h-3 w-3 rounded-full mr-2 ${task.isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
@@ -492,6 +539,27 @@ export default function TasksPage() {
                     <span>No schedule</span>
                   )}
                 </div>
+                {task.assignedTo && (
+                  <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <Building className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-sm ">
+                      {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.name || 'Unknown Property'} 
+                      ({properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.propertyId || 'N/A'})
+                    </span>
+                  </div>
+                  {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer && (
+                    <div className="flex items-center text-sm text-muted-foreground">
+                      <User className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <span className="truncate">
+                        Customer:{" "}
+                        {customers[properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer || '']?.name || 
+                          'Unknown Customer'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                )}
                 {task.assignedTo && (
                   <div className="flex items-center text-sm text-muted-foreground">
                     <User className="h-4 w-4 mr-2 flex-shrink-0" />
@@ -555,8 +623,8 @@ export default function TasksPage() {
                 <div className="space-y-2">
                   <Label htmlFor="propertyId">Property</Label>
                   <Select
-                    value={newTask.propertyId}
-                    onValueChange={(value) => setNewTask({ ...newTask, propertyId: value })}
+                    value={newTask.propertyInfo?.propertyId || ''}
+                    onValueChange={handlePropertySelect}
                     required
                   >
                     <SelectItem value="">Select a property</SelectItem>
@@ -567,6 +635,27 @@ export default function TasksPage() {
                     ))}
                   </Select>
                 </div>
+
+                {/* Display selected property's requirements */}
+                {newTask.requirements.length > 0 && (
+                  <div className="space-y-4 mt-4">
+                    <h4 className="text-sm font-medium">Room Requirements</h4>
+                    <div className="space-y-3">
+                      {newTask.requirements.map((req, reqIndex) => (
+                        <div key={reqIndex} className="border rounded-lg p-3">
+                          <h5 className="font-medium mb-2">{req.roomType}</h5>
+                          <ul className="list-disc pl-5 space-y-1">
+                            {req.tasks.map((task, taskIndex) => (
+                              <li key={taskIndex} className="text-sm text-gray-600">
+                                {task.description}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="scheduledTime">Scheduled Time</Label>
                   <Input
@@ -584,11 +673,13 @@ export default function TasksPage() {
                     onValueChange={(value) => setNewTask({ ...newTask, assignedTo: value })}
                   >
                     <SelectItem value="">Select a cleaner</SelectItem>
-                    {cleaners.map(cleaner => (
-                      <SelectItem key={cleaner._id} value={cleaner._id}>
-                        {cleaner.name}
-                      </SelectItem>
-                    ))}
+                    {cleaners
+                      .filter(cleaner => cleaner.role === 'cleaner')
+                      .map(cleaner => (
+                        <SelectItem key={cleaner._id} value={cleaner._id}>
+                          {cleaner.name}
+                        </SelectItem>
+                      ))}
                   </Select>
                 </div>
                 <div className="space-y-2">

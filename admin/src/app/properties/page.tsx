@@ -9,17 +9,21 @@ import {
   Home,
   MapPin,
   Square,
-  Building
+  Building,
+  User
 } from 'lucide-react';
 import Link from 'next/link';
-import { propertyAPI, Property, CreatePropertyRequest } from '@/services/api';
+import { propertyAPI, Property, CreatePropertyRequest, userAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
+
 
 export default function PropertiesPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [customers, setCustomers] = useState<Array<{_id: string, name: string, email: string}>>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   const [showManualModal, setShowManualModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null); // Still needed for manual edit modal
@@ -27,7 +31,22 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     fetchProperties();
+    fetchCustomers();
   }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      setLoadingCustomers(true);
+      const users = await userAPI.getAll();
+      const customerUsers = users.filter(user => user.role === 'customer');
+      setCustomers(customerUsers);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      toast.error('Failed to fetch customers');
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
 
   const fetchProperties = async () => {
     try {
@@ -231,6 +250,7 @@ export default function PropertiesPage() {
         <AddPropertyModal
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddProperty}
+          customers={customers}
         />
       )}
 
@@ -253,7 +273,15 @@ export default function PropertiesPage() {
 }
 
 // Modal Components
-function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (data: CreatePropertyRequest) => void }) {
+function AddPropertyModal({ 
+  onClose, 
+  onAdd,
+  customers 
+}: { 
+  onClose: () => void; 
+  onAdd: (data: CreatePropertyRequest) => void;
+  customers: Array<{_id: string, name: string, email: string}>;
+}) {
   const [formData, setFormData] = useState({
     propertyId: '',
     name: '',
@@ -359,17 +387,24 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
               />
             </div>
 
-            {/* Customer ID */}
-            <div>
+            {/* Customer Selection */}
+            <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Customer ID
+                Customer
               </label>
-              <input
-                type="text"
+              <select
                 value={formData.customer}
                 onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
+                required
+              >
+                <option value="">Select a customer</option>
+                {customers.map((customer: {_id: string, name: string, email: string}) => (
+                  <option key={customer._id} value={customer._id}>
+                    {customer.name} ({customer.email})
+                  </option>
+                ))}
+              </select>
             </div>
 
           </div>
