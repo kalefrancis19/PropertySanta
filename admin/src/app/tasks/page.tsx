@@ -2,9 +2,10 @@
 
 import { useState, useEffect, forwardRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { taskAPI, type Task, type CreateTaskRequest } from '@/services/api';
+import { taskAPI, type Task, type CreateTaskRequest, type UpdateTaskRequest, userAPI, propertyAPI, type Property } from '@/services/api';
 import { format } from 'date-fns';
-import { Plus, Search, Calendar, User } from 'lucide-react';
+import { Plus, Search, Calendar, User, Trash2, Edit } from 'lucide-react';
+import DashboardLayout from '@/components/DashboardLayout';
 
 // Simple toast notification hook
 const useToast = () => {
@@ -80,19 +81,22 @@ const Select = ({
   children,
   className,
   placeholder,
+  required = false,
 }: {
   value: string;
   onValueChange: (value: string) => void;
   children: React.ReactNode;
   className?: string;
   placeholder?: string;
+  required?: boolean;
 }) => {
   return (
     <div className={`relative ${className || ''}`}>
       <select
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
-        className={`flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none pr-8 ${!value ? 'text-gray-400' : ''}`}
+        className={`block w-full rounded-md border border-gray-200 py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!value ? 'text-gray-400' : ''}`}
+        required={required}
       >
         {placeholder && (
           <option value="" disabled>
@@ -162,19 +166,67 @@ export default function TasksPage() {
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     search: '',
     isActive: 'true',
   });
   
+  const [cleaners, setCleaners] = useState<Array<{_id: string, name: string}>>([]);
+  const [properties, setProperties] = useState<Array<{_id: string, name: string, propertyId: string}>>([]);
+  const [userNames, setUserNames] = useState<Record<string, string>>({});
   const [newTask, setNewTask] = useState<CreateTaskRequest>({
     propertyId: '',
-    requirements: [],
+    requirements: [{
+      roomType: '',
+      tasks: [{ description: '' }]
+    }],
     specialRequirement: '',
     scheduledTime: new Date(),
+    assignedTo: '',
     isActive: true,
   });
+
+  // Fetch data (cleaners, properties, tasks, and user names)
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchData = async () => {
+      try {
+        const [cleanersData, propertiesData, usersData] = await Promise.all([
+          userAPI.getAll(),
+          propertyAPI.getAll(),
+          userAPI.getAll() // Fetch all users to get names
+        ]);
+
+        if (isMounted) {
+          setCleaners(cleanersData.filter((user: any) => user.role === 'cleaner'));
+          setProperties(propertiesData);
+          
+          // Create a mapping of user IDs to names
+          const namesMap: Record<string, string> = {};
+          usersData.forEach((user: any) => {
+            namesMap[user._id] = user.name;
+          });
+          setUserNames(namesMap);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Fetch tasks
   useEffect(() => {
@@ -217,23 +269,89 @@ export default function TasksPage() {
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await taskAPI.create(newTask);
-      toast({
-        title: 'Success',
-        description: 'Task created successfully',
-      });
-      setIsCreateDialogOpen(false);
+      if (isEditing && currentTaskId) {
+        // For update, we need to ensure we only send the fields that can be updated
+        const { propertyId, ...updates } = newTask;
+        await taskAPI.update(currentTaskId, {
+          ...updates,
+          // Ensure requirements match the TaskRequirement interface
+          requirements: updates.requirements?.map(req => ({
+            ...req,
+            isCompleted: false, // Add isCompleted at the requirement level
+            tasks: req.tasks.map(t => ({
+              ...t,
+              isCompleted: false // Also include at task level if needed
+            }))
+          }))
+        } as UpdateTaskRequest);
+        toast({
+          title: 'Success',
+          description: 'Task updated successfully',
+        });
+      } else {
+        await taskAPI.create(newTask);
+        toast({
+          title: 'Success',
+          description: 'Task created successfully',
+        });
+      }
+      setIsTaskDialogOpen(false);
       // Refresh tasks
       const data = await taskAPI.getAll();
       setTasks(data);
+      resetForm();
     } catch (error) {
-      console.error('Error creating task:', error);
+      console.error('Error saving task:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create task. Please try again.',
+        description: `Failed to ${isEditing ? 'update' : 'create'} task. Please try again.`,
         variant: 'destructive',
       });
     }
+  };
+
+  const resetForm = () => {
+    setNewTask({
+      propertyId: '',
+      requirements: [{
+        roomType: '',
+        tasks: [{ description: '' }]
+      }],
+      specialRequirement: '',
+      scheduledTime: new Date(),
+      assignedTo: '',
+      isActive: true,
+    });
+    setIsEditing(false);
+    setCurrentTaskId(null);
+  };
+
+  const handleEditTask = (task: Task) => {
+    // Ensure requirements have the correct structure with isCompleted
+    const formattedRequirements = task.requirements.map(req => ({
+      roomType: req.roomType,
+      tasks: req.tasks.map(t => ({
+        description: t.description,
+        isCompleted: t.isCompleted || false
+      }))
+    }));
+
+    setNewTask({
+      propertyId: task.propertyId,
+      requirements: formattedRequirements,
+      specialRequirement: task.specialRequirement || '',
+      scheduledTime: task.scheduledTime ? new Date(task.scheduledTime) : new Date(),
+      assignedTo: typeof task.assignedTo === 'string' ? task.assignedTo : task.assignedTo?._id || '',
+      isActive: task.isActive,
+    });
+    setCurrentTaskId(task._id);
+    setIsEditing(true);
+    setIsTaskDialogOpen(true);
+  };
+
+  const handleCreateClick = () => {
+    resetForm();
+    setIsTaskDialogOpen(true);
   };
 
   // Toggle task status
@@ -257,6 +375,31 @@ export default function TasksPage() {
     }
   };
 
+  // Delete task
+  const deleteTask = async (taskId: string) => {
+    if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await taskAPI.delete(taskId);
+      toast({
+        title: 'Success',
+        description: 'Task deleted successfully',
+      });
+      // Refresh tasks
+      const data = await taskAPI.getAll();
+      setTasks(data);
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete task. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Filter tasks based on search
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.propertyId.toLowerCase().includes(filters.search.toLowerCase()) ||
@@ -266,15 +409,17 @@ export default function TasksPage() {
   });
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Tasks</h1>
-          <p className="text-muted-foreground">Manage and monitor cleaning tasks</p>
-        </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> New Task
-        </Button>
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tasks</h1>
+            <p className="text-gray-600 dark:text-gray-400">Manage and schedule tasks</p>
+          </div>
+        <Button onClick={handleCreateClick}>
+        <Plus className="mr-2 h-4 w-4" /> Schedule New Task
+      </Button>
       </div>
 
       {/* Filters */}
@@ -349,27 +494,47 @@ export default function TasksPage() {
                 </div>
                 {task.assignedTo && (
                   <div className="flex items-center text-sm text-muted-foreground">
-                    <User className="h-4 w-4 mr-2" />
-                    <span>Assigned to: {typeof task.assignedTo === 'string' ? task.assignedTo : task.assignedTo.name}</span>
+                    <User className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">
+                      {task.assignedTo ? 
+                        `Assigned to: ${typeof task.assignedTo === 'string' ? 
+                          (userNames[task.assignedTo] || task.assignedTo) : 
+                          task.assignedTo.name}` 
+                        : 'Unassigned'}
+                    </span>
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="bg-muted/50 p-4 border-t">
-                <div className="flex justify-between w-full">
+              <CardFooter className="bg-muted/50 p-4 border-t pt-5">
+                <div className="flex justify-end w-full items-center">
+                  <div className="flex space-x-2">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/tasks/${task._id}`)}
+                      variant={task.isActive ? 'outline' : 'default'}
+                      size="sm"
+                      onClick={() => toggleTaskStatus(task._id, task.isActive)}
+                    >
+                      {task.isActive ? 'Deactivate' : 'Activate'}
+                    </Button>
+                    <button
+                      type="button"
+                      className="p-2 rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                      onClick={() => handleEditTask(task as Task)}
+                      title="Edit task"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="p-2 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteTask(task._id);
+                    }}
+                    title="Delete task"
                   >
-                    View Details
-                  </Button>
-                  <Button
-                    variant={task.isActive ? 'outline' : 'default'}
-                    size="sm"
-                    onClick={() => toggleTaskStatus(task._id, task.isActive)}
-                  >
-                    {task.isActive ? 'Deactivate' : 'Activate'}
-                  </Button>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </CardFooter>
             </Card>
@@ -377,25 +542,30 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Create Task Dialog */}
-      {isCreateDialogOpen && (
+      {/* Create/Edit Task Dialog */}
+      {isTaskDialogOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Create New Task</CardTitle>
-              <CardDescription>Add a new cleaning task to the system</CardDescription>
+              <CardTitle>{isEditing ? 'Edit Task' : 'Schedule New Task'}</CardTitle>
+              <CardDescription>{isEditing ? 'Update the task details' : 'Add a new cleaning task to the system'}</CardDescription>
             </CardHeader>
             <form onSubmit={handleCreateTask}>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="propertyId">Property ID</Label>
-                  <Input
-                    id="propertyId"
-                    placeholder="Enter property ID"
+                  <Label htmlFor="propertyId">Property</Label>
+                  <Select
                     value={newTask.propertyId}
-                    onChange={(e) => setNewTask({ ...newTask, propertyId: e.target.value })}
+                    onValueChange={(value) => setNewTask({ ...newTask, propertyId: value })}
                     required
-                  />
+                  >
+                    <SelectItem value="">Select a property</SelectItem>
+                    {properties.map(property => (
+                      <SelectItem key={property._id} value={property.propertyId}>
+                        {property.name} ({property.propertyId})
+                      </SelectItem>
+                    ))}
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="scheduledTime">Scheduled Time</Label>
@@ -406,6 +576,20 @@ export default function TasksPage() {
                     onChange={(e) => setNewTask({ ...newTask, scheduledTime: new Date(e.target.value) })}
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="assignedTo">Assign To</Label>
+                  <Select
+                    value={newTask.assignedTo || ''}
+                    onValueChange={(value) => setNewTask({ ...newTask, assignedTo: value })}
+                  >
+                    <SelectItem value="">Select a cleaner</SelectItem>
+                    {cleaners.map(cleaner => (
+                      <SelectItem key={cleaner._id} value={cleaner._id}>
+                        {cleaner.name}
+                      </SelectItem>
+                    ))}
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="specialRequirement">Special Requirements</Label>
@@ -422,16 +606,19 @@ export default function TasksPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsCreateDialogOpen(false)}
+                  onClick={() => setIsTaskDialogOpen(false)}
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Create Task</Button>
+                <Button type="submit">
+                  {isEditing ? 'Update Task' : 'Create Task'}
+                </Button>
               </CardFooter>
             </form>
           </Card>
         </div>
       )}
     </div>
+  </DashboardLayout>
   );
 }
