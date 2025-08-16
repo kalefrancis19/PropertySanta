@@ -13,7 +13,7 @@ import {
 import { useTheme } from '@/components/ThemeProvider';
 import DashboardLayout from '@/components/DashboardLayout';
 import { propertyAPI, Property } from '@/services/api';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 
 // Extend the Property interface to include issues, aiFeedback, and photos
 interface PropertyWithIssues extends Omit<Property, 'issues' | 'aiFeedback' | 'photos'> {
@@ -171,11 +171,13 @@ export default function ReportsPage() {
       .flatMap((property: PropertyWithIssues) => {
         const roomTasks = property.roomTasks || [];
         const totalTasks = roomTasks.length;
-        const completedTasks = roomTasks.filter(room => room.isCompleted).length;
+        const completedRooms = (property.aiFeedback || [])
+        .filter((fb: any) => fb.score !== 0)
+        .length;
 
-        if (completedTasks === 0) return [];
+        // if (completedRooms === 0) return [];
 
-        const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        const progress = totalTasks > 0 ? Math.round((completedRooms / totalTasks) * 100) : 0;
         const status: 'completed' | 'in-progress' | 'scheduled' = 
           progress >= 100 ? 'completed' : 'in-progress';
 
@@ -219,7 +221,7 @@ export default function ReportsPage() {
 
         const report: CleaningReport = {
           id: property._id || '',
-          date: property.updatedAt ? format(new Date(property.updatedAt), 'yyyy-MM-dd') : 'N/A',
+          date: '2000:02:02',
           cleaner: property.assignedTo  || 'Not assigned',
           property: property.name || property.propertyId || 'Unnamed Property',
           duration: totalMinutes > 0 ? formatMinutes(totalMinutes) : 'N/A',
@@ -234,10 +236,8 @@ export default function ReportsPage() {
           roomFeedbacks,
           notes: property.instructions || 'No additional notes.',
           status,
-          lastCleaned: property.updatedAt ? format(new Date(property.updatedAt), 'MMM d, yyyy') : 'Never',
-          nextCleaning: property.updatedAt 
-            ? format(new Date(new Date(property.updatedAt).setDate(new Date(property.updatedAt).getDate() + 7)), 'MMM d, yyyy')
-            : 'Not scheduled',
+          lastCleaned: '2000:02:02',
+          nextCleaning:'2000:02:02',
           progress
         };
 
@@ -332,7 +332,7 @@ export default function ReportsPage() {
                   <div className="flex justify-between items-start mb-6">
                     <div>
                       <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedReport.property}</h2>
-                      <p className="text-gray-600 dark:text-gray-400">{selectedReport.date}</p>
+                      {/* <p className="text-gray-600 dark:text-gray-400">{selectedReport.date}</p> */}
                     </div>
                     <div className="flex items-center space-x-2">
                       <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">

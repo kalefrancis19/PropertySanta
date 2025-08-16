@@ -67,9 +67,9 @@ export default function TasksPage() {
     const map = new Map<string, TaskProgress>();
     properties.forEach(property => {
       const totalRooms = property.roomTasks?.length || 0;
-      const completedRooms = (property.roomTasks || []).filter(room => 
-        room.isCompleted === true
-      ).length;
+      const completedRooms = (property.aiFeedback || [])
+      .filter((fb: any) => fb.score !== 0)
+      .length;
       map.set(property._id || '', {
         total: totalRooms,
         completed: completedRooms,
