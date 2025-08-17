@@ -1,4 +1,5 @@
 const Property = require('../models/Property');
+const Task = require('../models/Task');
 const geminiService = require('../services/geminiService');
 const scoringService = require('../services/scoringService');
 
@@ -34,8 +35,9 @@ const chatWithAI = async (req, res) => {
     });
 
     if (propertyId) {
-      const property = await Property.findById(propertyId);
-      if (property) geminiService.updateContext({ currentProperty: property, workflowState: geminiService.context.workflowState || 'initial' });
+      const task = await Task.findOne({ propertyId: propertyId });
+      console.log(task,'------task-----------------')
+      if (task) geminiService.updateContext({ currentProperty: task, workflowState: geminiService.context.workflowState || 'initial' });
     }
 
     const aiResponse = await geminiService.generateChatResponse(message);
@@ -66,8 +68,8 @@ const handlePhotoUpload = async (req, res) => {
     if (!photoType || !roomType) return res.status(400).json({ success: false, message: 'Photo type and room type are required' });
 
     if (propertyId) {
-      const property = await Property.findById(propertyId);
-      if (property) geminiService.updateContext({ currentProperty: property });
+      const task = await Task.findOne({ propertyId: propertyId });
+      if (task) geminiService.updateContext({ currentProperty: task });
     }
 
     const result = await geminiService.handlePhotoUpload(photoBase64, photoType, roomType, userMessage);
@@ -191,8 +193,8 @@ const resetWorkflow = async (req, res) => {
     });
 
     if (propertyId) {
-      const property = await Property.findById(propertyId);
-      if (property) geminiService.updateContext({ currentProperty: property });
+      const task = await Task.findOne({ propertyId: propertyId });
+      if (task) geminiService.updateContext({ currentProperty: task });
     }
 
     res.json({ success: true, message: 'Workflow reset successfully' });

@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Home, 
   List, 
   MessageCircle, 
   User, 
   Bell,
-  Clock,
   MapPin,
   Calendar,
   Building,
@@ -16,6 +15,7 @@ import {
   Users
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
 import { apiService } from '../../services/apiService';
 import { useAuth } from '../../components/AuthProvider';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
@@ -25,7 +25,8 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
+  const [propertyDetails, setPropertyDetails] = useState<{[key: string]: any}>({});
+  const loadedProperties = useRef<Set<string>>(new Set());
   const router = useRouter();
   const { authState } = useAuth();
   
@@ -33,21 +34,27 @@ export default function TasksPage() {
   const userName = user?.name || 'Cleaner';
   const userInitial = userName.charAt(0).toUpperCase();
 
-  const handleTabChange = (tab: string) => {
+  const handleTabChange = async (tab: string) => {
+    // Don't do anything if clicking the current tab
+    if (tab === activeTab) return;
+    
     setActiveTab(tab);
+    
     if (tab === 'dashboard') {
       router.push('/dashboard');
     } else if (tab === 'chat') {
       router.push('/chat');
     } else if (tab === 'profile') {
       router.push('/profile');
-    }
-  };
-
-  useEffect(() => {
-    const loadTasks = async () => {
+    } else if (tab === 'tasks') {
       try {
+        // Clear existing data
+        setTasks([]);
+        setPropertyDetails({});
+        loadedProperties.current = new Set();
         setLoading(true);
+        
+        // Make a fresh request to the server
         const response = await apiService.getTasks();
         if (response.success) {
           setTasks(response.data);
@@ -60,67 +67,115 @@ export default function TasksPage() {
       } finally {
         setLoading(false);
       }
-    };
-  
-    // ✅ Only trigger when auth is loaded and user is authenticated
-    if (!authState.isLoading && authState.isAuthenticated && authState.user) {
-      loadTasks();
     }
-  }, [authState.isLoading, authState.isAuthenticated, authState.user]);
-  
-  const groupTasksByProperty = (tasks: any[]) => {
-    const grouped: { [key: string]: { property: any; tasks: any[] } } = {};
-    
-    // If tasks is an array of properties (from the modified backend response)
-    if (tasks && tasks.length > 0 && tasks[0].name) {
-      tasks.forEach(property => {
-        const propertyKey = property?._id || property?.id || 'unknown';
-        const propertyName = property?.name || 'Unknown Property';
-        
-        if (!grouped[propertyKey]) {
-          grouped[propertyKey] = {
-            property: {
-              id: propertyKey,
-              name: propertyName,
-              address: property?.address || 'No address provided'
-            },
-            tasks: property.roomTasks || []
-          };
-        }
-      });
-      return grouped;
-    }
-    
-    tasks.forEach(task => {
-      const property = task.property || {};
-      const propertyKey = property?._id || property?.id || 'unknown';
-      const propertyName = property?.name || property?.propertyName || 'Unknown Property';
-      
-      if (!grouped[propertyKey]) {
-        grouped[propertyKey] = {
-          property: {
-            id: propertyKey,
-            name: propertyName,
-            address: property?.address || task.address || 'Address not available',
-            type: property?.type || 'apartment'
-          },
-          tasks: []
-        };
-      }
-      grouped[propertyKey].tasks.push(task);
-    });
-    return grouped;
   };
 
-  const groupedTasks = groupTasksByProperty(tasks);
+  // Load tasks
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadTasks = async () => {
+      if (!authState.isAuthenticated || !authState.user) return;
+      
+      try {
+        setLoading(true);
+        setError('');
+        
+        const response = await apiService.getTasks();
+        
+        if (!isMounted) return;
+        
+        if (response?.success) {
+          setTasks(response.data || []);
+        } else {
+          setError(response?.message || 'Failed to load tasks');
+        }
+      } catch (error) {
+        console.error('Error loading tasks:', error);
+        if (isMounted) {
+          setError('Failed to load tasks. Please try again.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadTasks();
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
+  }, [authState.isAuthenticated, authState.user?.id]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 dark:from-yellow-900/30 dark:to-orange-900/30 dark:text-yellow-200';
-      case 'in_progress': return 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 dark:from-blue-900/30 dark:to-indigo-900/30 dark:text-blue-200';
-      case 'completed': return 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 dark:from-green-900/30 dark:to-emerald-900/30 dark:text-green-200';
-      default: return 'bg-gradient-to-r from-gray-100 to-slate-100 text-gray-800 dark:from-gray-900/30 dark:to-slate-900/30 dark:text-gray-200';
-    }
+  // Fetch property details for each task
+  useEffect(() => {
+    if (!tasks.length) return;
+
+    const propertyIds = Array.from(new Set(tasks.map(task => task.propertyId).filter(Boolean)));
+    const propertyIdsToFetch = propertyIds.filter(id => !loadedProperties.current.has(id));
+    if (propertyIdsToFetch.length === 0) return;
+
+    propertyIdsToFetch.forEach(id => loadedProperties.current.add(id));
+    let isMounted = true;
+
+    const fetchPropertyDetails = async () => {
+      try {
+        const fetchPromises = propertyIdsToFetch.map(propertyId =>
+          apiService.getPropertyDetails(propertyId)
+            .then(response => ({
+              id: propertyId,
+              response,
+              success: response?.success || false
+            }))
+            .catch(error => {
+              console.error(`Error fetching property ${propertyId}:`, error);
+              return { id: propertyId, response: null, success: false };
+            })
+        );
+
+        const results = await Promise.all(fetchPromises);
+
+        if (!isMounted) return;
+
+        // Save property objects into global state
+        setPropertyDetails(prev => {
+          const updated = { ...prev };
+          results.forEach(r => {
+            if (r.success && r.response?.property) {
+              updated[r.id] = r.response.property; // store property object
+            }
+          });
+          return updated;
+        });
+
+      } catch (error) {
+        console.error('Error in property details fetch:', error);
+      }
+    };
+
+    fetchPropertyDetails();
+    return () => {
+      isMounted = false;
+    };
+  }, [tasks]);
+
+  // Check if we're still loading tasks or if we have tasks with pending property details
+  const arePropertiesLoading = loading || 
+    (tasks.length > 0 && tasks.some(task => 
+      task.propertyId && !propertyDetails[task.propertyId]
+    ));
+
+  const getTaskStats = (requirements: any[]) => {
+    const totalTasks = requirements.length;
+    const completedTasks = requirements.filter(requirement => requirement.isCompleted === true).length;
+    return {
+      total: totalTasks,
+      completed: completedTasks,
+      completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+    };
   };
 
   const getPropertyTypeIcon = (type: string) => {
@@ -141,129 +196,12 @@ export default function TasksPage() {
     }
   };
 
-  const formatEstimatedTime = (timeStr: string): string => {
-    if (!timeStr) return 'Not specified';
-    
-    // Try to match the time value and unit
-    const match = timeStr.match(/^(\d+(?:\.\d+)?)\s*(minutes?|mins?|hours?|hrs?|days?|d)?$/i);
-    
-    if (!match) return timeStr; // Return as is if format doesn't match
-    
-    const value = parseFloat(match[1]);
-    const unit = match[2]?.toLowerCase() || '';
-    
-    // Convert everything to minutes for comparison
-    let totalMinutes = 0;
-    
-    if (unit.includes('day') || unit === 'd') {
-      totalMinutes = value * 24 * 60;
-    } else if (unit.includes('hour') || unit === 'hr' || unit === 'h') {
-      totalMinutes = value * 60;
-    } else {
-      totalMinutes = value; // Assume minutes if no unit specified
-    }
-    
-    // Format the output
-    if (totalMinutes >= 24 * 60) {
-      const days = Math.floor(totalMinutes / (24 * 60));
-      const remainingHours = Math.round((totalMinutes % (24 * 60)) / 60);
-      return `${days} day${days > 1 ? 's' : ''}${remainingHours > 0 ? ` ${remainingHours} hr${remainingHours > 1 ? 's' : ''}` : ''}`.trim();
-    } else if (totalMinutes >= 60) {
-      const hours = Math.floor(totalMinutes / 60);
-      const remainingMinutes = Math.round(totalMinutes % 60);
-      return `${hours} hr${hours > 1 ? 's' : ''}${remainingMinutes > 0 ? ` ${remainingMinutes} min${remainingMinutes > 1 ? 's' : ''}` : ''}`.trim();
-    } else {
-      return `${Math.round(totalMinutes)} min${totalMinutes !== 1 ? 's' : ''}`;
-    }
-  };
-  
-  const sumEstimatedTimes = (tasks: any[]): string => {
-    if (!tasks || tasks.length === 0) return 'Not specified';
-    
-    const totalMinutes = tasks.reduce((total, task) => {
-      if (!task.estimatedTime) return total;
-      
-      const match = task.estimatedTime.match(/^(\d+(?:\.\d+)?)\s*(minutes?|mins?|hours?|hrs?|days?|d)?$/i);
-      if (!match) return total;
-      
-      const value = parseFloat(match[1]);
-      const unit = match[2]?.toLowerCase() || '';
-      
-      if (unit.includes('day') || unit === 'd') return total + (value * 24 * 60);
-      if (unit.includes('hour') || unit === 'hr' || unit === 'h') return total + (value * 60);
-      return total + value; // Default to minutes
-    }, 0);
-    
-    // Format the total time
-    if (totalMinutes >= 24 * 60) {
-      const days = Math.floor(totalMinutes / (24 * 60));
-      const remainingHours = Math.round((totalMinutes % (24 * 60)) / 60);
-      return `${days} day${days > 1 ? 's' : ''}${remainingHours > 0 ? ` ${remainingHours} hr${remainingHours > 1 ? 's' : ''}` : ''}`.trim();
-    } else if (totalMinutes >= 60) {
-      const hours = Math.floor(totalMinutes / 60);
-      const remainingMinutes = Math.round(totalMinutes % 60);
-      return `${hours} hr${hours > 1 ? 's' : ''}${remainingMinutes > 0 ? ` ${remainingMinutes} min${remainingMinutes > 1 ? 's' : ''}` : ''}`.trim();
-    } else {
-      return `${Math.round(totalMinutes)} min${totalMinutes !== 1 ? 's' : ''}`;
-    }
-  };
 
-  const getPropertyStats = (propertyTasks: any[]) => {
-    const totalTasks = propertyTasks.length;
-    const completedTasks = propertyTasks.filter(task => task.isCompleted === true).length;
-    
-    return {
-      total: totalTasks,
-      completed: completedTasks,
-      completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
-    };
-  };
-
-  const formatScheduledTime = (timeStr: string) => {
-    if (!timeStr) return 'Not scheduled';
-    
-    try {
-      const scheduledDate = new Date(timeStr);
-      const now = new Date();
-      const timeDiff = scheduledDate.getTime() - now.getTime();
-      const hoursDiff = timeDiff / (1000 * 60 * 60);
-      
-      if (hoursDiff < 0) {
-        return 'Overdue';
-      } else if (hoursDiff < 24) {
-        return `Today at ${scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-      } else if (hoursDiff < 48) {
-        return `Tomorrow at ${scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-      } else {
-        return scheduledDate.toLocaleDateString([], { 
-          year: 'numeric',
-          month: 'short', 
-          day: 'numeric',
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
-      }
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
-    }
-  };
-
-  const togglePropertyExpanded = (propertyKey: string) => {
-    setExpandedProperties(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(propertyKey)) {
-        newSet.delete(propertyKey);
-      } else {
-        newSet.add(propertyKey);
-      }
-      return newSet;
-    });
-  };
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col pt-24">
+      
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl px-6 py-6 shadow-lg border-b border-white/20 z-50">
         <div className="flex items-center justify-between">
@@ -272,7 +210,7 @@ export default function TasksPage() {
               Tasks
             </h1>
             <p className="text-gray-600 dark:text-gray-300 text-sm mt-1">
-              Welcome back, {userName} 👋
+              Welcome back, {userName} 
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -293,13 +231,18 @@ export default function TasksPage() {
         {/* Properties Overview */}
         <div className="px-6 pt-12 pb-32">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Properties Overview</h3>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Overview my tasks</h3>
           </div>
           
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-4 text-gray-600">Loading properties...</p>
+            </div>
+          ) : arePropertiesLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading property details...</p>
             </div>
           ) : error ? (
             <div className="text-center py-8">
@@ -311,105 +254,103 @@ export default function TasksPage() {
                 Try again
               </button>
             </div>
+          ) : tasks.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                <List className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No tasks found</h3>
+              <p className="text-gray-500 dark:text-gray-400">You don't have any tasks assigned yet.</p>
+            </div>
           ) : (
             <div className="space-y-6">
-              {Object.entries(groupedTasks).map(([propertyKey, propertyData]) => {
-                const { property, tasks: propertyTasks } = propertyData;
-                const stats = getPropertyStats(propertyTasks);
-                const hasInProgressTasks = propertyTasks.some(task => task.status === 'in_progress');
-                const hasPendingTasks = propertyTasks.some(task => task.status === 'pending');
-                
-                return (
-                  <div key={propertyKey} className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <div className={`p-2 rounded-xl ${getPropertyTypeColor(property.type)} bg-opacity-10`}>
-                              {getPropertyTypeIcon(property.type)}
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                                {property.name}
-          
-                              </h3>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
-                            <MapPin className="w-4 h-4 flex-shrink-0" />
-                            <span>{property.address}</span>
-                          </div>
-                          {property.scheduledTime && (
-                            <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300 mt-1">
-                              <Calendar className="w-4 h-4 flex-shrink-0" />
-                              <span>
-                                {new Date(property.scheduledTime).toLocaleString([], {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Property Stats */}
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-gray-900 dark:text-white">{stats.total}</div>
-                          <div className="text-xs text-gray-600 dark:text-gray-300">Total Tasks</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-green-600">{stats.completed}</div>
-                          <div className="text-xs text-gray-600 dark:text-gray-300">Completed</div>
-                        </div>
-                      </div>
+            {tasks.map((task) => {
+              const stats = getTaskStats(task.requirements);
 
-                      {/* Property Action Button */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {stats.completed === stats.total ? (
-                            <button className="flex items-center space-x-2 bg-gray-400 text-white px-6 py-3 rounded-2xl shadow-lg cursor-not-allowed">
-                              <CheckCircle className="w-4 h-4" />
-                              <span className="font-semibold">Completed</span>
-                            </button>
-                          ) : stats.completed === 0 ? (
-                            <button 
-                              onClick={() => router.push(`/chat?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}`)}
-                              className="flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-                            >
-                              <Play className="w-4 h-4" />
-                              <span className="font-semibold">Start Property</span>
-                            </button>
-                          ) : (
-                            <button 
-                              onClick={() => router.push(`/chat?propertyId=${property.id}&propertyName=${encodeURIComponent(property.name)}`)}
-                              className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-                            >
-                              <Play className="w-4 h-4" />
-                              <span className="font-semibold">Continue</span>
-                            </button>
-                          )}
+              return (
+                <div key={task._id} className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/20 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className={`text-xl font-semibold leading-none tracking-tight py-3`}>
+                          Task #{task._id.slice(-6).toUpperCase()}
+                        </h3>
+                        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
+                         <div className={`rounded-xl ${getPropertyTypeColor(propertyDetails[task.propertyId]?.type)} bg-opacity-10`}>
+                            {getPropertyTypeIcon(propertyDetails[task.propertyId]?.type)}
+                          </div>
+                          <div>
+                              {propertyDetails[task.propertyId]?.name || `Property ${task.propertyId?.substring(0, 8) || 'Unknown'}`}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-600 dark:text-gray-300">Estimated Time</p>
-                          <p className="font-bold text-gray-900 dark:text-white text-lg">
-                            {property.estimatedTime ? formatEstimatedTime(property.estimatedTime) : sumEstimatedTimes(propertyTasks)}
-                          </p>
+                        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
+                          <MapPin className="w-4 h-4 flex-shrink-0" />
+                          <span>{propertyDetails[task.propertyId]?.address || 'No address provided'}</span>
                         </div>
+                        {task.scheduledTime && (
+                          <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300 mt-1">
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span>
+                              {new Date(task.scheduledTime).toLocaleString([], {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Task Stats */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-gray-900 dark:text-white">{stats.total}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300">Total Rooms</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-green-600">{stats.completed}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300">Completed</div>
+                      </div>
+                    </div>
+          
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        {stats.completed === stats.total ? (
+                          <button className="flex items-center space-x-2 bg-gray-400 text-white px-6 py-3 rounded-2xl shadow-lg cursor-not-allowed">
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="font-semibold">Completed</span>
+                          </button>
+                        ) : stats.completed === 0 ? (
+                          <button 
+                            onClick={() => router.push(`/chat?propertyId=${task.propertyId}&propertyName=${encodeURIComponent(propertyDetails[task.propertyId]?.name || '')}`)}
+                            className="flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                          >
+                            <Play className="w-4 h-4" />
+                            <span className="font-semibold">Start Property</span>
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => router.push(`/chat?propertyId=${task.propertyId}&propertyName=${encodeURIComponent(propertyDetails[task.propertyId]?.name || '')}`)}
+                            className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                          >
+                            <Play className="w-4 h-4" />
+                            <span className="font-semibold">Continue</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
+          </div>
+          
           )}
         </div>
-
-
 
         {/* Bottom Navigation */}
         <div className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-t border-white/20 px-6 py-4 z-50">

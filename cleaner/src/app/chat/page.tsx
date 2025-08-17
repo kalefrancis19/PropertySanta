@@ -118,13 +118,14 @@ export default function ChatPage() {
       if (propertyId) {
         try {
           const response = await apiService.getPropertyDetails(propertyId);
+          console.log('-------------------------response', response)
           if (response.success && !cancelled) {
-            setCurrentProperty(response.data);
+            setCurrentProperty(response.property);
             setIsTyping(true);
             // Get AI-generated welcome message from backend
             const aiResponse = await apiService.chatWithAI({
               message: "Generate a welcome message for this property",
-              propertyId: response.data._id
+              propertyId: response.property._id
             });
             if (aiResponse.success && !cancelled) {
               setMessages([{
@@ -139,7 +140,7 @@ export default function ChatPage() {
               // Fallback welcome message
               setMessages([{
                 id: '1',
-                text: `Welcome to ${response.data.name}! I'm your AI assistant. How can I help you with the cleaning tasks?`,
+                text: `Welcome to ${response.property.name}! I'm your AI assistant. How can I help you with the cleaning tasks?`,
                 sender: 'system',
                 timestamp: new Date(),
                 type: 'system'

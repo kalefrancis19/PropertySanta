@@ -1,5 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Property = require('../models/Property');
+const Task = require('../models/Task');
 
 class GeminiService {
   constructor() {
@@ -107,8 +108,8 @@ class GeminiService {
     ${currentProperty ? currentProperty.name : 'No property loaded'}
     
     Room Tasks:
-    ${currentProperty?.roomTasks?.map(rt => 
-      `${rt.roomType} (${rt.estimatedTime}):\n` +
+    ${currentProperty?.requirements?.map(rt => 
+      `${rt.roomType}:\n` +
       rt.tasks.map((task, i) => 
         `  ${i+1}. ${task.description}${task.isCompleted ? ' ✓' : ''}`
       ).join('\n') +
@@ -160,7 +161,7 @@ class GeminiService {
   async handlePhotoUpload(photoBase64, photoType, roomType, userMessage) {
     try {
       const { workflowState, beforePhotosLogged, afterPhotosLogged, currentProperty } = this.context;
-      
+      console.log('Current context:-------------------------', currentProperty)
       // Use intelligent text analysis to extract room type and photo type
       const textAnalysis = this.analyzeTextForPhotoInfo(userMessage);
       console.log('📝 Text analysis result:', textAnalysis);
@@ -225,7 +226,7 @@ class GeminiService {
         // Save to MongoDB if we have a property ID
         if (this.context.currentProperty?._id) {
           try {
-            await Property.findByIdAndUpdate(
+            await Task.findByIdAndUpdate(
               this.context.currentProperty._id,
               {
                 $push: {
@@ -244,7 +245,7 @@ class GeminiService {
         const manualRequirements = this.getManualRequirementsForRoom(detectedRoomType);
         
         // Get all unique room types that need before photos
-        const allRooms = [...new Set(currentProperty?.roomTasks?.map(rt => rt.roomType) || [])];
+        const allRooms = [...new Set(currentProperty?.requirements?.map(rt => rt.roomType) || [])];
         
         // Check if all rooms have before photos
         const roomsWithBeforePhotos = new Set(
@@ -323,7 +324,7 @@ class GeminiService {
           // Save analysis results to MongoDB if we have a property ID
           if (this.context.currentProperty?._id) {
             try {
-              const propertyId = this.context.currentProperty._id;
+              const taskId = this.context.currentProperty._id;
               
               // Create issues from scoring results
               const issues = [];
@@ -363,9 +364,8 @@ class GeminiService {
                 analysisType: 'after_cleaning'
               }];
               
-              // Update the property document
-              await Property.findByIdAndUpdate(
-                propertyId,
+              await Task.findByIdAndUpdate(
+                taskId,
                 {
                   $push: {
                     issues: { $each: issues },
@@ -375,7 +375,7 @@ class GeminiService {
                 { new: true, runValidators: true }
               );
               
-              console.log(`Saved analysis results for ${detectedRoomType} to property ${propertyId}`);
+              console.log(`Saved analysis results for ${detectedRoomType} to task ${taskId}`);
             } catch (error) {
               console.error('Failed to save analysis results to MongoDB:', error);
               // Continue even if save fails - we don't want to break the user flow
@@ -411,18 +411,18 @@ class GeminiService {
           if (this.context.currentProperty?._id) {
             try {
               // Update the property to add the photo and mark the room task as completed
-              await Property.findOneAndUpdate(
+              await Task.findOneAndUpdate(
                 {
                   _id: this.context.currentProperty._id,
-                  'roomTasks.roomType': detectedRoomType
+                  'requirements.roomType': detectedRoomType
                 },
                 {
                   $push: {
                     photos: photoData
                   },
                   $set: {
-                    'roomTasks.$.isCompleted': true,
-                    'roomTasks.$.completedAt': new Date()
+                    'requirements.$.isCompleted': true,
+                    'requirements.$.completedAt': new Date()
                   }
                 },
                 { new: true, runValidators: true }
@@ -435,7 +435,7 @@ class GeminiService {
           }
           
           // Get all unique room types that need after photos
-          const allRooms = [...new Set(currentProperty?.roomTasks?.map(rt => rt.roomType) || [])];
+          const allRooms = [...new Set(currentProperty?.requirements?.map(rt => rt.roomType) || [])];
           
           // Check if all rooms have after photos
           const roomsWithAfterPhotos = new Set(
@@ -658,32 +658,31 @@ class GeminiService {
 
   // Get manual requirements for a specific room
   getManualRequirementsForRoom(roomType) {
-    if (!this.context.currentProperty || !this.context.currentProperty.roomTasks) {
+    if (!this.context.currentProperty || !this.context.currentProperty.requirements) {
       return ['No room tasks available.'];
     }
 
     // Find the room task that matches the room type (case insensitive)
-    const roomTask = this.context.currentProperty.roomTasks.find(
+    const requirements = this.context.currentProperty.requirements.find(
       rt => rt.roomType.toLowerCase() === roomType.toLowerCase()
     );
 
-    if (!roomTask) {
+    if (!requirements) {
       return [`No tasks found for ${roomType}.`];
     }
 
-    const requirements = [
-      `Tasks for ${roomTask.roomType} (Estimated time: ${roomTask.estimatedTime}):`,
-      ...roomTask.tasks.map(task => 
+    const requirementsList = [
+      ...requirements.tasks.map(task => 
         `- ${task.description}${task.isCompleted ? ' (Completed)' : ''}`
       )
     ];
 
-    if (roomTask.specialInstructions && roomTask.specialInstructions.length > 0) {
-      requirements.push('', 'Special Instructions:');
-      requirements.push(...roomTask.specialInstructions.map(i => `- ${i}`));
+    if (this.context.currentProperty.specialInstructions && this.context.currentProperty.specialInstructions.length > 0) {
+      requirementsList.push('', 'Special Instructions:');
+      requirementsList.push(...this.context.currentProperty.specialInstructions);
     }
 
-    return requirements;
+    return requirementsList;
   }
 
   // Format manual requirements for display
@@ -706,7 +705,7 @@ class GeminiService {
   // Generate final summary
   generateFinalSummary() {
     const { currentProperty, afterPhotosLogged, scoringHistory } = this.context;
-    const allRooms = currentProperty?.roomTasks?.map(rt => rt.roomType) || [];
+    const allRooms = currentProperty?.requirements?.map(rt => rt.roomType) || [];
     
     let summary = `🏠 Property: ${currentProperty?.name || 'Unknown'}\n`;
     summary += `📸 Rooms Completed: ${allRooms.length}\n`;
@@ -1442,7 +1441,7 @@ class GeminiService {
     // Handle simple photo type messages
     if (lowerMessage === 'before' || lowerMessage === 'after' || lowerMessage === 'during') {
       const { currentProperty, currentRoomIndex } = this.context;
-      const allRooms = currentProperty?.roomTasks?.map(rt => rt.roomType) || [];
+      const allRooms = currentProperty?.requirements?.map(rt => rt.roomType) || [];
       const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
       
       return `Perfect! I'm ready for the ${currentRoom.toUpperCase()} ${userMessage.toUpperCase()} photo. Please upload a photo now by clicking the camera or paperclip icon.`;
@@ -1456,7 +1455,6 @@ class GeminiService {
                 📋 Property Details:
                 • Address: ${property.address}
                 • Type: ${property.type}
-                • Estimated Time: ${property.estimatedTime}
                 • Square Footage: ${property.squareFootage} sq ft
 
                 📖 Manual Overview:
@@ -1503,7 +1501,7 @@ class GeminiService {
       return "We haven't started any cleaning tasks yet! 🏠 Let me know which property you'd like to work on, and I'll help you get started.";
     }
     
-    const allRooms = currentProperty.roomTasks?.map(rt => rt.roomType) || [];
+    const allRooms = currentProperty.requirements?.map(rt => rt.roomType) || [];
     const totalRooms = allRooms.length;
     const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
     
@@ -1552,7 +1550,7 @@ class GeminiService {
   // Get next steps guidance
   getNextSteps() {
     const { workflowState, currentRoomIndex, beforePhotosLogged, afterPhotosLogged } = this.context;
-    const allRooms = this.context.currentProperty?.roomTasks?.map(rt => rt.roomType) || [];
+    const allRooms = this.context.currentProperty?.requirements?.map(rt => rt.roomType) || [];
     const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
     
     switch (workflowState) {
@@ -1594,7 +1592,7 @@ class GeminiService {
       return "We haven't started any property yet! 🏠 Let me know which property you'd like to work on.";
     }
     
-    const allRooms = currentProperty.roomTasks?.map(rt => rt.roomType) || [];
+    const allRooms = currentProperty.requirements?.map(rt => rt.roomType) || [];
     const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
     
     // Find which room they're asking about
@@ -1604,15 +1602,14 @@ class GeminiService {
     if (userMessage.includes('kitchen')) targetRoom = 'kitchen';
     if (userMessage.includes('living')) targetRoom = 'living room';
     
-    const roomTask = currentProperty.roomTasks?.find(rt => rt.roomType === targetRoom);
+    const roomTask = currentProperty.requirements?.find(rt => rt.roomType === targetRoom);
     if (!roomTask) {
       return `I don't see ${targetRoom} in the current property. Available rooms: ${allRooms.join(', ')}`;
     }
     
     return `🏠 **${targetRoom.toUpperCase()} Information:**
-• Estimated Time: ${roomTask.estimatedTime}
-• Key Requirements: ${roomTask.manualRequirements.join(', ')}
-• Current Status: ${this.getRoomStatus(targetRoom)}`;
+          • Key Requirements: ${roomTask.manualRequirements.join(', ')}
+          • Current Status: ${this.getRoomStatus(targetRoom)}`;
   }
   
   // Get room status
@@ -1632,7 +1629,7 @@ class GeminiService {
   // Get photo guidance
   getPhotoGuidance() {
     const { workflowState, currentRoomIndex } = this.context;
-    const allRooms = this.context.currentProperty?.roomTasks?.map(rt => rt.roomType) || [];
+    const allRooms = this.context.currentProperty?.requirements?.map(rt => rt.roomType) || [];
     const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
     
     if (workflowState === 'INITIAL' || workflowState === 'BEFORE_PHOTOS_REQUESTED') {
@@ -1651,18 +1648,16 @@ class GeminiService {
       return "We haven't started any property yet! 🏠 Let me know which property you'd like to work on to see the manual requirements.";
     }
     
-    const allRooms = currentProperty.roomTasks?.map(rt => rt.roomType) || [];
+    const allRooms = currentProperty.requirements?.map(rt => rt.roomType) || [];
     const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
-    const roomTask = currentProperty.roomTasks?.find(rt => rt.roomType === currentRoom);
+    const roomTask = currentProperty.requirements?.find(rt => rt.roomType === currentRoom);
     
     if (!roomTask) {
       return `I don't see ${currentRoom} in the current property. Available rooms: ${allRooms.join(', ')}`;
     }
     
     return `📋 **${currentRoom.toUpperCase()} Manual Requirements:**
-${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}
-
-⏱️ Estimated Time: ${roomTask.estimatedTime}`;
+${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}`;
   }
   
   // Get scoring information
@@ -1783,7 +1778,6 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}
         workflow: [],
         manualTips: [],
         qualityCheckpoints: [],
-        estimatedTime: '30 minutes',
         safetyReminders: [],
         toolsNeeded: []
       };
@@ -1804,7 +1798,6 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}
             2. Step-by-step workflow (ordered list of tasks)
             3. Manual tips (specific tips from manual)
             4. Quality checkpoints (when to take photos)
-            5. Estimated time for completion
             6. Safety reminders (if any)
             7. Tools needed for this room
 
@@ -1819,7 +1812,6 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}
               ],
               "manualTips": ["Use microfiber cloths", "Check corners thoroughly"],
               "qualityCheckpoints": ["After dusting", "After baseboards", "Final inspection"],
-              "estimatedTime": "45 minutes",
               "safetyReminders": ["Wear gloves", "Ventilate room"],
               "toolsNeeded": ["Microfiber cloths", "All-purpose cleaner", "Vacuum", "Mop"]
             }`;
@@ -1834,7 +1826,6 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}
         workflow: data.workflow || [],
         manualTips: data.manualTips || [],
         qualityCheckpoints: data.qualityCheckpoints || [],
-        estimatedTime: data.estimatedTime || '30 minutes',
         safetyReminders: data.safetyReminders || [],
         toolsNeeded: data.toolsNeeded || []
       };
@@ -1847,7 +1838,6 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}
         workflow: [],
         manualTips: [],
         qualityCheckpoints: [],
-        estimatedTime: '30 minutes',
         safetyReminders: [],
         toolsNeeded: []
       };
@@ -1864,7 +1854,6 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}
       workflow: [],
       manualTips: [],
       qualityCheckpoints: [],
-      estimatedTime: '30 minutes',
       safetyReminders: [],
       toolsNeeded: []
     };

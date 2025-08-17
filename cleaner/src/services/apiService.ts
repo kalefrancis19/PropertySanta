@@ -184,7 +184,7 @@ class ApiService {
   }
 
   async getPropertyDetails(propertyId: string): Promise<ApiResponse> {
-    return this.request(`/tasks/property/${propertyId}`);
+    return this.request(`/properties/${propertyId}`);
   }
 
   async updateRoomTaskStatus(propertyId: string, roomType: string, taskIndex: number, isCompleted: boolean): Promise<ApiResponse> {
