@@ -67,10 +67,10 @@ export default function HomePage() {
               <Home className="h-10 w-10 text-white" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
-              Welcome to PropertySanta
+              Welcome to AdminPortal
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Smart cleaning insights and intelligent task management
+              Smart cleaning insights and intelligent user&task management
             </p>
           </div>
 
@@ -81,7 +81,7 @@ export default function HomePage() {
                 Sign In
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Access your property dashboard
+                Access your admin portal
               </p>
             </div>
 

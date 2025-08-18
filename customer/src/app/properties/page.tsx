@@ -9,50 +9,48 @@ import {
   Home,
   MapPin,
   Square,
-  Building,
-  User
+  Building
 } from 'lucide-react';
 import Link from 'next/link';
-import { propertyAPI, Property, CreatePropertyRequest, userAPI } from '@/services/api';
+import { propertyAPI, Property, CreatePropertyRequest } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: 'customer';
+}
 
 export default function PropertiesPage() {
+  const { user: authUser, loading: authLoading } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [customers, setCustomers] = useState<Array<{_id: string, name: string, email: string}>>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   const [showManualModal, setShowManualModal] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null); // Still needed for manual edit modal
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [editingManual, setEditingManual] = useState({ title: '', content: '' });
 
-  useEffect(() => {
-    fetchProperties();
-    fetchCustomers();
-  }, []);
+  const currentUser = authUser as User | null;
 
-  const fetchCustomers = async () => {
-    try {
-      setLoadingCustomers(true);
-      const users = await userAPI.getAll();
-      const customerUsers = users.filter(user => user.role === 'customer');
-      setCustomers(customerUsers);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-      toast.error('Failed to fetch customers');
-    } finally {
-      setLoadingCustomers(false);
+  useEffect(() => {
+    if (!authLoading && currentUser) {
+      fetchProperties();
+    } else if (!authLoading) {
+      setLoading(false);
     }
-  };
+  }, [currentUser, authLoading]);
 
   const fetchProperties = async () => {
+    if (!currentUser) return;
     try {
       setLoading(true);
       const data = await propertyAPI.getAll();
-      setProperties(data);
+      const filtered = data.filter(p => p.customer === currentUser._id);
+      setProperties(filtered);
     } catch (error) {
       console.error('Error fetching properties:', error);
       toast.error('Failed to fetch properties');
@@ -62,11 +60,15 @@ export default function PropertiesPage() {
   };
 
   const handleAddProperty = async (propertyData: CreatePropertyRequest) => {
+    if (!currentUser) return;
     try {
-      await propertyAPI.create(propertyData);
+      const newProperty = await propertyAPI.create({ 
+        ...propertyData, 
+        customer: currentUser._id 
+      });
       toast.success('Property added successfully');
+      setProperties(prev => [...prev, newProperty]); // update local state
       setShowAddModal(false);
-      fetchProperties();
     } catch (error) {
       console.error('Error adding property:', error);
       toast.error('Failed to add property');
@@ -75,11 +77,10 @@ export default function PropertiesPage() {
 
   const handleDeleteProperty = async (id: string) => {
     if (!confirm('Are you sure you want to delete this property?')) return;
-    
     try {
       await propertyAPI.delete(id);
       toast.success('Property deleted successfully');
-      fetchProperties();
+      setProperties(prev => prev.filter(p => p._id !== id));
     } catch (error) {
       console.error('Error deleting property:', error);
       toast.error('Failed to delete property');
@@ -97,13 +98,12 @@ export default function PropertiesPage() {
 
   const handleManualSave = async () => {
     if (!selectedProperty) return;
-    
     try {
-      await propertyAPI.updateManual(selectedProperty._id!, editingManual);
+      const updated = await propertyAPI.updateManual(selectedProperty._id!, editingManual);
       toast.success('Manual updated successfully');
+      setProperties(prev => prev.map(p => p._id === updated._id ? updated : p));
       setShowManualModal(false);
       setSelectedProperty(null);
-      fetchProperties();
     } catch (error) {
       console.error('Error updating manual:', error);
       toast.error('Failed to update manual');
@@ -112,9 +112,9 @@ export default function PropertiesPage() {
 
   const handleToggleStatus = async (property: Property) => {
     try {
-      await propertyAPI.update(property._id!, { isActive: !property.isActive });
-      toast.success(`Property ${property.isActive ? 'deactivated' : 'activated'} successfully`);
-      fetchProperties();
+      const updated = await propertyAPI.update(property._id!, { isActive: !property.isActive });
+      toast.success(`Property ${updated.isActive ? 'activated' : 'deactivated'} successfully`);
+      setProperties(prev => prev.map(p => p._id === updated._id ? updated : p));
     } catch (error) {
       console.error('Error toggling property status:', error);
       toast.error('Failed to update property status');
@@ -158,29 +158,25 @@ export default function PropertiesPage() {
             <div key={property._id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <div className="flex items-center space-x-2">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{property.name}</h3>
-                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{property.name}</h3>
                   <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                      {property.propertyId}
+                    {property.propertyId}
                   </span>
                   <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center mt-1">
                     <MapPin className="h-3.5 w-3.5 mr-1" />
                     {property.address}
                   </p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => handleToggleStatus(property)}
-                    className={`px-2 py-1 text-xs rounded-full ${
-                      property.isActive 
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' 
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-400'
-                    }`}
-                  >
-                    {property.isActive ? 'Active' : 'Inactive'}
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleToggleStatus(property)}
+                  className={`px-2 py-1 text-xs rounded-full ${
+                    property.isActive 
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-400'
+                  }`}
+                >
+                  {property.isActive ? 'Active' : 'Inactive'}
+                </button>
               </div>
 
               <div className="space-y-3 mb-4">
@@ -246,15 +242,13 @@ export default function PropertiesPage() {
       </div>
 
       {/* Add Property Modal */}
-      {showAddModal && (
+      {showAddModal && currentUser && (
         <AddPropertyModal
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddProperty}
-          customers={customers}
+          currentUserId={currentUser._id}
         />
       )}
-
-
 
       {/* Manual Edit Modal */}
       {showManualModal && selectedProperty && (
@@ -272,15 +266,15 @@ export default function PropertiesPage() {
   );
 }
 
-// Modal Components
+// Simplified AddPropertyModal: no customer select, auto-assigns currentUser
 function AddPropertyModal({ 
   onClose, 
   onAdd,
-  customers 
+  currentUserId
 }: { 
   onClose: () => void; 
   onAdd: (data: CreatePropertyRequest) => void;
-  customers: Array<{_id: string, name: string, email: string}>;
+  currentUserId: string;
 }) {
   const [formData, setFormData] = useState({
     propertyId: '',
@@ -290,7 +284,6 @@ function AddPropertyModal({
     squareFootage: '',
     cycle: '',
     isActive: false,
-    customer: '',
     manual: {
       title: 'Live Cleaning & Maintenance Manual',
       content: ''
@@ -300,8 +293,6 @@ function AddPropertyModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Prepare the property data with all required fields
     const propertyData: CreatePropertyRequest = {
       propertyId: formData.propertyId,
       name: formData.name,
@@ -310,11 +301,9 @@ function AddPropertyModal({
       squareFootage: parseInt(formData.squareFootage) || 0,
       cycle: formData.cycle,
       isActive: formData.isActive,
-      customer: formData.customer,
+      customer: currentUserId,
       roomTasks: []
     };
-    
-    console.log('Submitting property data:', propertyData);
     onAdd(propertyData);
   };
 
@@ -323,160 +312,60 @@ function AddPropertyModal({
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Add Property</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Property ID</label>
-            <input
-              type="text"
-              value={formData.propertyId}
-              onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
-            <input
-              type="text"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              required
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="Name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            className="w-full px-3 py-2 border rounded-lg"
+            required
+          />
+          <input
+            type="text"
+            placeholder="Property ID"
+            value={formData.propertyId}
+            onChange={(e) => setFormData({ ...formData, propertyId: e.target.value })}
+            className="w-full px-3 py-2 border rounded-lg"
+            required
+          />
+          <input
+            type="text"
+            placeholder="Address"
+            value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            className="w-full px-3 py-2 border rounded-lg"
+            required
+          />
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-              <input
-                type="text"
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                placeholder="Enter property type"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Square Footage</label>
-              <input
-                type="number"
-                value={formData.squareFootage}
-                onChange={(e) => setFormData({ ...formData, squareFootage: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Cleaning Cycle
-              </label>
-              <input
-                type="text"
-                value={formData.cycle || ''}
-                onChange={(e) => setFormData({ ...formData, cycle: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
-            </div>
-
-            {/* Customer Selection */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Customer
-              </label>
-              <select
-                value={formData.customer}
-                onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                required
-              >
-                <option value="">Select a customer</option>
-                {customers.map((customer: {_id: string, name: string, email: string}) => (
-                  <option key={customer._id} value={customer._id}>
-                    {customer.name} ({customer.email})
-                  </option>
-                ))}
-              </select>
-            </div>
-
+            <input
+              type="text"
+              placeholder="Type"
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+            <input
+              type="number"
+              placeholder="Square Footage"
+              value={formData.squareFootage}
+              onChange={(e) => setFormData({ ...formData, squareFootage: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+              required
+            />
           </div>
+          <input
+            type="text"
+            placeholder="Cleaning Cycle"
+            value={formData.cycle}
+            onChange={(e) => setFormData({ ...formData, cycle: e.target.value })}
+            className="w-full px-3 py-2 border rounded-lg"
+          />
           <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg"
-            >
-              Add Property
-            </button>
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg">Add Property</button>
           </div>
         </form>
       </div>
     </div>
   );
 }
-
-
-
-function ManualEditModal({ manual, onClose, onSave, onChange }: { 
-  manual: { title: string; content: string }; 
-  onClose: () => void; 
-  onSave: () => void;
-  onChange: (manual: { title: string; content: string }) => void;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Edit Cleaning Manual</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
-            <input
-              type="text"
-              value={manual.title}
-              onChange={(e) => onChange({ ...manual, title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Content</label>
-            <textarea
-              value={manual.content}
-              onChange={(e) => onChange({ ...manual, content: e.target.value })}
-              rows={15}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              placeholder="Enter cleaning instructions, special requirements, and maintenance notes..."
-            />
-          </div>
-        </div>
-        <div className="flex justify-end space-x-3 pt-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSave}
-            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg"
-          >
-            Save Manual
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-} 
