@@ -14,7 +14,9 @@ import {
   User,
   Bell,
   Sun,
-  Moon
+  Moon,
+  Users,
+  ShoppingCart
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -26,21 +28,25 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const [activeSection, setActiveSection] = useState(() => {
-    if (pathname === '/dashboard') return 'overview';
+    if (pathname === '/') return 'overview';
     if (pathname === '/properties') return 'properties';
+    if (pathname === '/users') return 'users';
     if (pathname === '/tasks') return 'tasks';
     if (pathname === '/reports') return 'reports';
-    if (pathname === '/support') return 'support';
+    if (pathname === '/messages') return 'messages';
+    if (pathname === '/orders') return 'orders';
     if (pathname === '/settings') return 'settings';
     return 'overview';
   });
 
   const navigationItems = [
-    { id: 'overview', name: 'Dashboard', icon: BarChart3, href: '/dashboard' },
-    { id: 'properties', name: 'My Properties', icon: Home, href: '/properties' },
-    { id: 'tasks', name: 'Cleaning Tasks', icon: Calendar, href: '/tasks' },
-    { id: 'reports', name: 'Cleaning Reports', icon: FileText, href: '/reports' },
-    { id: 'support', name: 'Support', icon: MessageCircle, href: '/support' },
+    { id: 'overview', name: 'Dashboard', icon: BarChart3, href: '/' },
+    { id: 'properties', name: 'Properties', icon: Home, href: '/properties' },
+    { id: 'users', name: 'Users', icon: Users, href: '/users' },
+    { id: 'tasks', name: 'Tasks', icon: Calendar, href: '/tasks' },
+    { id: 'reports', name: 'Reports', icon: FileText, href: '/reports' },
+    { id: 'messages', name: 'Messages', icon: MessageCircle, href: '/messages' },
+    { id: 'orders', name: 'Orders', icon: ShoppingCart, href: '/orders' },
     { id: 'settings', name: 'Settings', icon: Settings, href: '/settings' },
   ];
 
@@ -53,7 +59,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <Home className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">Customer Dashboard</span>
+            <span className="text-xl font-bold text-gray-900 dark:text-white">Admin Portal</span>
           </div>
           
           <div className="flex items-center space-x-4">
@@ -77,7 +83,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
                 <User className="h-5 w-5 text-primary-600 dark:text-primary-400" />
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">John Smith</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Admin</span>
             </div>
           </div>
         </div>

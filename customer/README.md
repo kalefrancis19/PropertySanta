@@ -1,4 +1,4 @@
-# PropertySanta AdminWeb
+# PropertySanta customerWeb
 
 A modern web interface for managing properties and cleaning tasks, integrated with the PropertySanta backend.
 
@@ -31,7 +31,7 @@ A modern web interface for managing properties and cleaning tasks, integrated wi
 
 ## Backend Integration
 
-The AdminWeb connects to the PropertySanta backend API:
+The customerWeb connects to the PropertySanta backend API:
 
 - **Base URL**: `http://localhost:5000/api`
 - **Properties API**: `/api/properties`
@@ -40,7 +40,7 @@ The AdminWeb connects to the PropertySanta backend API:
 
 ## Database Schema
 
-The AdminWeb works with the MongoDB schema from the backend:
+The customerWeb works with the MongoDB schema from the backend:
 
 ### Property Schema
 ```javascript
@@ -105,7 +105,7 @@ npm run dev
 
 ### Environment Configuration
 
-Create a `.env.local` file in the AdminWeb directory:
+Create a `.env.local` file in the customerWeb directory:
 ```
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ```
@@ -127,7 +127,7 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 
 ## Manual Management
 
-The AdminWeb provides a dedicated interface for managing property manuals:
+The customerWeb provides a dedicated interface for managing property manuals:
 
 1. **Access**: Click the "Manual" button on any property card
 2. **Edit**: Update the manual title and content
@@ -144,7 +144,7 @@ This feature allows property owners to:
 
 ### Project Structure
 ```
-AdminWeb/
+customerWeb/
 ├── src/
 │   ├── app/                 # Next.js app router pages
 │   │   ├── dashboard/       # Dashboard page
@@ -167,11 +167,11 @@ AdminWeb/
 
 ## Integration with Cleaner App
 
-The AdminWeb is designed to work alongside the PropertySanta cleaner app:
+The customerWeb is designed to work alongside the PropertySanta cleaner app:
 
 - **Shared Database**: Both apps use the same MongoDB instance
 - **Consistent Schema**: Property and task data is synchronized
-- **Manual Updates**: Changes made in AdminWeb are reflected in the cleaner app
+- **Manual Updates**: Changes made in customerWeb are reflected in the cleaner app
 - **Real-time Status**: Task status updates are visible in both interfaces
 
 ## Future Enhancements

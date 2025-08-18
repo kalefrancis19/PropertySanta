@@ -64,19 +64,19 @@ export default function AISmartNotifications() {
                 <span className="font-medium text-gray-900 dark:text-white">{mockData.upcomingCleaning.date} at {mockData.upcomingCleaning.time}</span>
               </div>
               <div className="flex items-center space-x-2">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
+                <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
                 <span className="text-gray-600 dark:text-gray-400">Issues:</span>
                 <span className="font-medium text-gray-900 dark:text-white">{mockData.recentIssues.length} items</span>
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
-                <Cloud className="h-4 w-4 text-blue-500" />
+                <Cloud className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                 <span className="text-gray-600 dark:text-gray-400">Weather:</span>
                 <span className="font-medium text-gray-900 dark:text-white">{mockData.weatherForecast}</span>
               </div>
               <div className="flex items-center space-x-2">
-                <Wrench className="h-4 w-4 text-yellow-500" />
+                <Wrench className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
                 <span className="text-gray-600 dark:text-gray-400">Maintenance:</span>
                 <span className="font-medium text-gray-900 dark:text-white">{mockData.maintenanceReminders.length} reminders</span>
               </div>

@@ -78,12 +78,12 @@ export default function AICleaningReport() {
               <span className="font-medium text-gray-900 dark:text-white">{mockReport.cleaner}</span>
             </div>
             <div className="flex items-center space-x-2">
-              <Star className="h-4 w-4 text-yellow-500" />
+              <Star className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
               <span className="text-gray-600 dark:text-gray-400">Rating:</span>
               <span className="font-medium text-gray-900 dark:text-white">{mockReport.rating}/5</span>
             </div>
             <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
+              <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
               <span className="text-gray-600 dark:text-gray-400">Issues:</span>
               <span className="font-medium text-gray-900 dark:text-white">{mockReport.issues.length}</span>
             </div>
@@ -94,7 +94,7 @@ export default function AICleaningReport() {
         {mockReport.issues.length > 0 && (
           <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
             <h4 className="font-medium text-red-900 dark:text-red-100 mb-2 flex items-center space-x-2">
-              <AlertTriangle className="h-4 w-4" />
+              <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
               <span>Issues Found:</span>
             </h4>
             <ul className="space-y-1">

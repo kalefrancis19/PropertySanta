@@ -6,8 +6,8 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PropertySanta - Customer Dashboard",
-  description: "Property management and cleaning services dashboard",
+  title: "PropertySanta - customer Portal",
+  description: "Property management and cleaning services customer portal",
 };
 
 export default function RootLayout({

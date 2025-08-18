@@ -2,54 +2,46 @@
 
 import { useState } from 'react';
 import { 
-  Shield, 
   Eye, 
   EyeOff, 
-  Users, 
-  Activity, 
-  Eye as EyeIcon,
+  Home, 
+  Shield, 
+  Sparkles,
   Sun,
   Moon
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 
-export default function AdminLoginPage() {
+export default function HomePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState('admin');
   const { theme, toggleTheme } = useTheme();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // TODO: Implement actual admin login logic
+    // Simulate login process
     setTimeout(() => {
       setIsLoading(false);
-      // For MVP, we'll simulate successful login
-      window.location.href = '/admin';
+      window.location.href = '/';
     }, 1000);
   };
-
-  const roles = [
-    { id: 'admin', name: 'Administrator', description: 'Full system access and management', icon: Shield },
-    { id: 'supervisor', name: 'Supervisor', description: 'Task oversight and cleaner management', icon: Users },
-    { id: 'ai_reviewer', name: 'AI Reviewer', description: 'AI feedback review and validation', icon: EyeIcon }
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-xl flex items-center justify-center">
-                <Shield className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                <Home className="h-6 w-6 text-primary-600 dark:text-primary-400" />
               </div>
               <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-blue-600 bg-clip-text text-transparent">
-                PropertySanta Admin
+                PropertySanta
               </span>
             </div>
+            
             <div className="flex items-center space-x-4">
               <button
                 onClick={toggleTheme}
@@ -61,10 +53,6 @@ export default function AdminLoginPage() {
                   <Sun className="h-5 w-5" />
                 )}
               </button>
-              <div className="flex items-center space-x-4">
-                <Activity className="h-5 w-5 text-primary-600 dark:text-primary-400" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Administrative Portal</span>
-              </div>
             </div>
           </div>
         </div>
@@ -72,73 +60,32 @@ export default function AdminLoginPage() {
 
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
-        <div className="max-w-md w-full space-y-8">
+        <div className="max-w-md w-full space-y-6">
           {/* Hero Section */}
           <div className="text-center">
             <div className="mx-auto h-20 w-20 bg-gradient-to-br from-primary-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-              <Shield className="h-10 w-10 text-white" />
+              <Home className="h-10 w-10 text-white" />
             </div>
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-3">
-              Admin Access
-            </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 mb-2">
-              Secure administrative portal
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
+              Welcome to PropertySanta
+            </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              PropertySanta management system
+              Smart cleaning insights and intelligent task management
             </p>
           </div>
 
           {/* Login Form */}
           <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 p-8">
             <div className="text-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                 Sign In
-              </h3>
+              </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Access your admin dashboard
+                Access your property dashboard
               </p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
-              {/* Role Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Select Role
-                </label>
-                <div className="space-y-2">
-                  {roles.map((role) => {
-                    const Icon = role.icon;
-                    return (
-                      <label
-                        key={role.id}
-                        className={`flex items-center space-x-3 p-3 border rounded-xl cursor-pointer transition-colors ${
-                          selectedRole === role.id
-                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
-                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="role"
-                          value={role.id}
-                          checked={selectedRole === role.id}
-                          onChange={(e) => setSelectedRole(e.target.value)}
-                          className="sr-only"
-                        />
-                        <Icon className={`h-5 w-5 ${
-                          selectedRole === role.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'
-                        }`} />
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{role.name}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{role.description}</div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Email Address
@@ -149,7 +96,7 @@ export default function AdminLoginPage() {
                   type="email"
                   required
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                  placeholder="Enter your admin email"
+                  placeholder="Enter your email"
                 />
               </div>
 
@@ -213,8 +160,8 @@ export default function AdminLoginPage() {
                     </>
                   ) : (
                     <>
-                      <Shield className="h-4 w-4" />
-                      <span>Sign in to Admin Portal</span>
+                      <Sparkles className="h-4 w-4" />
+                      <span>Sign in to Dashboard</span>
                     </>
                   )}
                 </button>
@@ -227,23 +174,39 @@ export default function AdminLoginPage() {
                   <div className="w-full border-t border-gray-300 dark:border-gray-600" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white/80 dark:bg-gray-900/80 text-gray-500 dark:text-gray-400">Need help?</span>
+                  <span className="px-2 bg-white/80 dark:bg-gray-900/80 text-gray-500 dark:text-gray-400">New to PropertySanta?</span>
                 </div>
               </div>
 
-              <div className="mt-6 text-center">
-                <a href="/" className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-500 dark:hover:text-primary-300">
-                  ← Back to Homeowner Portal
-                </a>
+              <div className="mt-6">
+                <button className="w-full flex justify-center items-center space-x-2 py-3 px-4 border border-primary-300 dark:border-primary-600 rounded-xl shadow-sm text-sm font-medium text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 hover:bg-primary-100 dark:hover:bg-primary-900/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors">
+                  <span>Create Account</span>
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Security Notice */}
+          {/* Features */}
           <div className="text-center">
-            <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-              <Shield className="h-4 w-4" />
-              <span>Secure administrative access</span>
+            <div className="grid grid-cols-3 gap-4 text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex flex-col items-center space-y-1">
+                <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                </div>
+                <span>AI Insights</span>
+              </div>
+              <div className="flex flex-col items-center space-y-1">
+                <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center">
+                  <Home className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                </div>
+                <span>Smart Management</span>
+              </div>
+              <div className="flex flex-col items-center space-y-1">
+                <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                </div>
+                <span>Secure Platform</span>
+              </div>
             </div>
           </div>
         </div>

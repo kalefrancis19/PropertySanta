@@ -54,45 +54,26 @@ api.interceptors.response.use(
 
 // Property types based on your backend schema
 export interface Property {
-  _id?: string;
+  _id: string;
   propertyId: string;
   name: string;
   address: string;
   type: 'apartment' | 'house' | 'office';
-  rooms: number;
-  bathrooms: number;
   squareFootage: number;
-  estimatedTime: string;
-  manual: {
-    title: string;
-    content: string;
-    lastUpdated?: Date;
-  };
+  cycle?: string;
+  isActive: boolean;
+  customer?: string;
   roomTasks: Array<{
     roomType: string;
     tasks: Array<{
       description: string;
       isCompleted: boolean;
-      estimatedTime: string;
-      specialNotes?: string;
+      Regular?: string;
     }>;
-    specialInstructions: string[];
-    fragileItems: string[];
   }>;
-  instructions?: string;
-  specialRequirements?: string[];
-  owner?: {
-    name: string;
-    email: string;
-    phone: string;
-  };
-  isActive: boolean;
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: string;
 }
 
 export interface CreatePropertyRequest {
@@ -100,35 +81,37 @@ export interface CreatePropertyRequest {
   name: string;
   address: string;
   type: 'apartment' | 'house' | 'office';
-  rooms: number;
-  bathrooms: number;
   squareFootage: number;
-  estimatedTime: string;
-  manual: {
-    title: string;
-    content: string;
-  };
+  cycle?: string;
+  isActive?: boolean;
+  customer?: string;  
   roomTasks: Array<{
     roomType: string;
     tasks: Array<{
       description: string;
-      estimatedTime: string;
-      specialNotes?: string;
+      isCompleted?: boolean;
+      Regular?: string;
     }>;
-    specialInstructions: string[];
-    fragileItems: string[];
   }>;
-  instructions?: string;
-  specialRequirements?: string[];
-  owner?: {
-    name: string;
-    email: string;
-    phone: string;
-  };
 }
 
-export interface UpdatePropertyRequest extends Partial<CreatePropertyRequest> {
+export interface UpdatePropertyRequest {
+  name?: string;
+  propertyId?: string;
+  address?: string;
+  type?: 'apartment' | 'house' | 'office';
+  squareFootage?: number;
+  cycle?: string;
+  customer?: string;  
   isActive?: boolean;
+  roomTasks?: Array<{
+    roomType: string;
+    tasks: Array<{
+      description: string;
+      isCompleted?: boolean;
+      Regular?: string;
+    }>;
+  }>;
 }
 
 // Property API functions
@@ -211,41 +194,262 @@ export const propertyAPI = {
 };
 
 // Task types and API
-export interface Task {
-  _id?: string;
-  title: string;
+export interface TaskRequirement {
+  roomType: string;
+  tasks: Array<{
+    description: string;
+    isCompleted: boolean;
+  }>;
+  isCompleted: boolean;
+}
+
+export interface Photo {
+  _id: string;
+  url: string;
+  type: 'before' | 'during' | 'after';
+  uploadedBy: string | { _id: string; name: string };
+  uploadedAt: Date;
+  isUploaded: boolean;
+  localPath?: string;
+  tags?: string[];
+  notes?: string;
+}
+
+export interface Issue {
+  _id: string;
+  type: string;
   description: string;
-  property: string;
-  address: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  estimatedTime: string;
-  priority: 'low' | 'medium' | 'high';
+  photoId?: string;
+  location?: string;
+  notes?: string;
+  reportedBy: string | { _id: string; name: string };
+  isResolved: boolean;
+  resolvedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AIFeedback {
+  photoId: string;
+  issueId?: string;
+  feedback: string;
+  improvements: string[];
+  confidence: number;
+  suggestions: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Task {
+  _id: string;
+  propertyId: string;
+  requirements: TaskRequirement[];
+  specialRequirement?: string;
+  scheduledTime?: Date;
+  assignedTo?: string | { _id: string; name: string; email: string };
+  photos: Photo[];
+  issues: Issue[];
+  aiFeedback: AIFeedback[];
+  chatHistory?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateTaskRequest {
+  propertyId: string;
+  requirements: Array<{
+    roomType: string;
+    tasks: Array<{
+      description: string;
+    }>;
+  }>;
+  specialRequirement?: string;
+  scheduledTime?: Date | string;
   assignedTo?: string;
-  instructions?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  isActive?: boolean;
+}
+
+export interface UpdateTaskRequest {
+  requirements?: TaskRequirement[];
+  specialRequirement?: string;
+  scheduledTime?: Date | string;
+  assignedTo?: string;
+  isActive?: boolean;
+}
+
+export interface AddPhotoRequest {
+  url: string;
+  type: 'before' | 'during' | 'after';
+  tags?: string[];
+  notes?: string;
+}
+
+export interface AddIssueRequest {
+  type: string;
+  description: string;
+  location?: string;
+  notes?: string;
+  photoId?: string;
 }
 
 export const taskAPI = {
-  getAll: async (): Promise<Task[]> => {
+  // Get all tasks (admin only)
+  async getAll(filters: { propertyId?: string; isActive?: boolean } = {}): Promise<Task[]> {
+    const params = new URLSearchParams();
+    if (filters.propertyId) params.append('propertyId', filters.propertyId);
+    if (filters.isActive !== undefined) params.append('isActive', String(filters.isActive));
+    
+    const response = await api.get(`/tasks?${params.toString()}`);
+    return response.data.data;
+  },
+
+  // Get task by ID
+  async getById(id: string): Promise<Task> {
+    const response = await api.get(`/tasks/${id}`);
+    return response.data.data;
+  },
+
+  // Create new task (admin only)
+  async create(task: CreateTaskRequest): Promise<Task> {
+    const response = await api.post('/tasks', task);
+    return response.data.data;
+  },
+
+  // Update task (admin only)
+  async update(id: string, updates: UpdateTaskRequest): Promise<Task> {
+    const response = await api.put(`/tasks/${id}`, updates);
+    return response.data.data;
+  },
+
+  // Delete task (admin only)
+  async delete(id: string): Promise<void> {
+    await api.delete(`/tasks/${id}`);
+  },
+
+  // Add photo to task
+  async addPhoto(taskId: string, photo: AddPhotoRequest): Promise<Photo> {
+    const response = await api.post(`/tasks/${taskId}/photos`, photo);
+    return response.data.data;
+  },
+
+  // Add issue to task
+  async addIssue(taskId: string, issue: AddIssueRequest): Promise<Issue> {
+    const response = await api.post(`/tasks/${taskId}/issues`, issue);
+    return response.data.data;
+  },
+
+  // Update requirement task status
+  async updateRequirementStatus(
+    taskId: string, 
+    reqIndex: number, 
+    taskIndex: number, 
+    isCompleted: boolean
+  ): Promise<TaskRequirement> {
+    const response = await api.put(
+      `/tasks/${taskId}/requirements/${reqIndex}/tasks/${taskIndex}`,
+      { isCompleted }
+    );
+    return response.data.data;
+  }
+};
+
+// User types
+export interface User {
+  _id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: 'admin' | 'cleaner' | 'customer';
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateUserRequest {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  role: 'admin' | 'cleaner' | 'customer';
+  isActive?: boolean;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  password?: string;
+  phone?: string;
+  role?: 'admin' | 'cleaner' | 'customer';
+  isActive?: boolean;
+}
+
+// User API functions
+export const userAPI = {
+  // Get all users
+  getAll: async (): Promise<User[]> => {
     try {
-      const response = await api.get('/tasks');
-      return response.data.tasks || [];
+      const response = await api.get('/users');
+      return response.data || [];
     } catch (error) {
-      console.error('Error fetching tasks:', error);
+      console.error('Error fetching users:', error);
       throw error;
     }
   },
 
-  getByProperty: async (propertyId: string): Promise<Task[]> => {
+  // Get user by ID
+  getById: async (id: string): Promise<User> => {
     try {
-      const response = await api.get(`/tasks/admin?property=${propertyId}`);
-      return response.data.tasks || [];
+      const response = await api.get(`/users/${id}`);
+      return response.data;
     } catch (error) {
-      console.error('Error fetching tasks for property:', error);
+      console.error('Error fetching user:', error);
       throw error;
     }
-  }
+  },
+
+  // Create new user
+  create: async (user: CreateUserRequest): Promise<User> => {
+    try {
+      const response = await api.post('/users', user);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  },
+
+  // Update user
+  update: async (id: string, user: UpdateUserRequest): Promise<User> => {
+    try {
+      const response = await api.put(`/users/${id}`, user);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
+  },
+
+  // Delete user
+  delete: async (id: string): Promise<void> => {
+    try {
+      await api.delete(`/users/${id}`);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      throw error;
+    }
+  },
+
+  // Toggle user active status
+  toggleStatus: async (id: string, isActive: boolean): Promise<User> => {
+    try {
+      const response = await api.put(`/users/${id}`, { isActive });
+      return response.data;
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      throw error;
+    }
+  },
 };
 
-export default api; 
+export default api;

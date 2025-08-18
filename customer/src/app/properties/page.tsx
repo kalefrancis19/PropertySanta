@@ -9,17 +9,21 @@ import {
   Home,
   MapPin,
   Square,
-  Building
+  Building,
+  User
 } from 'lucide-react';
 import Link from 'next/link';
-import { propertyAPI, Property, CreatePropertyRequest } from '@/services/api';
+import { propertyAPI, Property, CreatePropertyRequest, userAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
+
 
 export default function PropertiesPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [customers, setCustomers] = useState<Array<{_id: string, name: string, email: string}>>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   const [showManualModal, setShowManualModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null); // Still needed for manual edit modal
@@ -27,7 +31,22 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     fetchProperties();
+    fetchCustomers();
   }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      setLoadingCustomers(true);
+      const users = await userAPI.getAll();
+      const customerUsers = users.filter(user => user.role === 'customer');
+      setCustomers(customerUsers);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      toast.error('Failed to fetch customers');
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
 
   const fetchProperties = async () => {
     try {
@@ -121,8 +140,8 @@ export default function PropertiesPage() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Properties</h1>
-            <p className="text-gray-600 dark:text-gray-400">Manage your properties and cleaning manuals</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Properties</h1>
+            <p className="text-gray-600 dark:text-gray-400">Manage customer's properties and cleaning manuals</p>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
@@ -231,6 +250,7 @@ export default function PropertiesPage() {
         <AddPropertyModal
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddProperty}
+          customers={customers}
         />
       )}
 
@@ -253,16 +273,24 @@ export default function PropertiesPage() {
 }
 
 // Modal Components
-function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (data: CreatePropertyRequest) => void }) {
+function AddPropertyModal({ 
+  onClose, 
+  onAdd,
+  customers 
+}: { 
+  onClose: () => void; 
+  onAdd: (data: CreatePropertyRequest) => void;
+  customers: Array<{_id: string, name: string, email: string}>;
+}) {
   const [formData, setFormData] = useState({
     propertyId: '',
     name: '',
     address: '',
-    type: 'apartment' as 'apartment' | 'house' | 'office',
+    type: '',
     squareFootage: '',
-    rooms: '1',
-    bathrooms: '1',
-    estimatedTime: '60', // in minutes
+    cycle: '',
+    isActive: false,
+    customer: '',
     manual: {
       title: 'Live Cleaning & Maintenance Manual',
       content: ''
@@ -280,13 +308,9 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
       address: formData.address,
       type: formData.type,
       squareFootage: parseInt(formData.squareFootage) || 0,
-      rooms: parseInt(formData.rooms) || 1,
-      bathrooms: parseInt(formData.bathrooms) || 1,
-      estimatedTime: `${formData.estimatedTime} minutes`,
-      manual: {
-        ...formData.manual,
-        content: formData.manual.content || `Live Cleaning & Maintenance Manual\n${formData.address}\nProperty Overview\n- Property ID: ${formData.propertyId}\n- Type: ${formData.type}\n- Square Footage: ${formData.squareFootage} sq ft`
-      },
+      cycle: formData.cycle,
+      isActive: formData.isActive,
+      customer: formData.customer,
       roomTasks: []
     };
     
@@ -332,15 +356,13 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
-              <select
+              <input
+                type="text"
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as 'apartment' | 'house' | 'office' })}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                placeholder="Enter property type"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="apartment">Apartment</option>
-                <option value="house">House</option>
-                <option value="office">Office</option>
-              </select>
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Square Footage</label>
@@ -352,6 +374,39 @@ function AddPropertyModal({ onClose, onAdd }: { onClose: () => void; onAdd: (dat
                 required
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cleaning Cycle
+              </label>
+              <input
+                type="text"
+                value={formData.cycle || ''}
+                onChange={(e) => setFormData({ ...formData, cycle: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Customer Selection */}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Customer
+              </label>
+              <select
+                value={formData.customer}
+                onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                required
+              >
+                <option value="">Select a customer</option>
+                {customers.map((customer: {_id: string, name: string, email: string}) => (
+                  <option key={customer._id} value={customer._id}>
+                    {customer.name} ({customer.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
           </div>
           <div className="flex justify-end space-x-3 pt-4">
             <button

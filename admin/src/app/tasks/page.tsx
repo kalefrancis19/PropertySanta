@@ -31,9 +31,9 @@ const Button = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButt
   ({ className, variant = 'default', size = 'default', children, ...props }, ref) => {
     const baseStyles = 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
     const variants = {
-      default: 'bg-blue-600 text-white hover:bg-blue-700',
-      outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
-      destructive: 'bg-red-600 text-white hover:bg-red-700',
+      default: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800',
+      outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700',
+      destructive: 'bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800',
     };
     const sizes = {
       default: 'h-10 py-2 px-4',
@@ -43,7 +43,7 @@ const Button = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButt
     
     return (
       <button
-        className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className || ''}`}
+        className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className || ''} focus-visible:ring-blue-500 dark:focus-visible:ring-blue-600`}
         ref={ref}
         {...props}
       >
@@ -60,7 +60,7 @@ const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputEl
     return (
       <input
         type={type}
-        className={`flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
+        className={`flex h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm ring-offset-white dark:ring-offset-gray-900 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-gray-900 dark:text-gray-100 ${className || ''}`}
         ref={ref}
         {...props}
       />
@@ -74,7 +74,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HT
   ({ className, ...props }, ref) => {
     return (
       <textarea
-        className={`flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
+        className={`flex min-h-[80px] w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm ring-offset-white dark:ring-offset-gray-900 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-gray-900 dark:text-gray-100 ${className || ''}`}
         ref={ref}
         {...props}
       />
@@ -104,7 +104,7 @@ const Select = ({
       <select
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
-        className={`block w-full rounded-md border border-gray-200 py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${!value ? 'text-gray-400' : ''}`}
+        className={`block w-full rounded-md border border-gray-200 dark:border-gray-600 py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${!value ? 'text-gray-400 dark:text-gray-500' : ''}`}
         required={required}
       >
         {placeholder && (
@@ -135,7 +135,7 @@ const SelectItem = ({ value, children, ...props }: { value: string; children: Re
 
 // Simple card components
 const Card = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={`rounded-lg border bg-white shadow-sm ${className || ''}`} {...props} />
+  <div className={`rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm ${className || ''}`} {...props} />
 );
 
 const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -143,11 +143,11 @@ const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement
 );
 
 const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
-  <h3 className={`text-xl font-semibold leading-none tracking-tight ${className || ''}`} {...props} />
+  <h3 className={`text-xl font-semibold leading-none tracking-tight text-gray-900 dark:text-white ${className || ''}`} {...props} />
 );
 
 const CardDescription = ({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
-  <p className={`text-sm text-gray-500 ${className || ''}`} {...props} />
+  <p className={`text-sm text-gray-500 dark:text-gray-400 ${className || ''}`} {...props} />
 );
 
 const CardContent = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -160,12 +160,12 @@ const CardFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement
 
 // Simple label component
 const Label = ({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
-  <label className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className || ''}`} {...props} />
+  <label className={`text-sm font-medium leading-none text-gray-700 dark:text-gray-300 peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className || ''}`} {...props} />
 );
 
 // Simple select placeholder component
 const SelectPlaceholder = ({ children, ...props }: { children: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>) => (
-  <div className="text-gray-400" {...props}>
+  <div className="text-gray-400 dark:text-gray-500" {...props}>
     {children}
   </div>
 );
@@ -420,12 +420,12 @@ export default function TasksPage() {
     const baseStyles = 'px-2 py-1 rounded-md text-xs font-medium';
     switch (status) {
       case 'completed':
-        return `${baseStyles} bg-green-100 text-green-800`;
+        return `${baseStyles} bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200`;
       case 'inprogress':
-        return `${baseStyles} bg-blue-100 text-blue-800`;
+        return `${baseStyles} bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200`;
       case 'pending':
       default:
-        return `${baseStyles} bg-yellow-100 text-yellow-800`;
+        return `${baseStyles} bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200`;
     }
   };
 
@@ -503,7 +503,7 @@ export default function TasksPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search tasks..."
-            className="pl-10"
+            className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
           />
@@ -523,18 +523,18 @@ export default function TasksPage() {
       {/* Tasks Grid */}
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary dark:border-primary/50"></div>
         </div>
       ) : filteredTasks.length === 0 ? (
-        <Card>
+        <Card className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">No tasks found</p>
+            <p className="text-muted-foreground dark:text-gray-400">No tasks found</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredTasks.map((task) => (
-            <Card key={task._id} className="overflow-hidden">
+            <Card key={task._id} className="overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
               <CardHeader className="pb-3 pt-10 relative">
                 <div className={getStatusBadgeStyles(getTaskStatus(task))} style={{
                   position: 'absolute',
@@ -546,7 +546,7 @@ export default function TasksPage() {
                 </div>
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-lg font-medium">
+                    <CardTitle className="text-lg font-medium text-gray-900 dark:text-white">
                       Task #{task._id.slice(-6).toUpperCase()}
                     </CardTitle>
                     {/* <CardDescription className="mt-1">
@@ -554,8 +554,8 @@ export default function TasksPage() {
                     </CardDescription> */}
                   </div>
                   <div className="flex items-center">
-                    <div className={`h-3 w-3 rounded-full mr-2 ${task.isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                    <span className="text-sm text-muted-foreground">
+                    <div className={`h-3 w-3 rounded-full mr-2 ${task.isActive ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                    <span className="text-sm text-muted-foreground dark:text-gray-400">
                       {task.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
@@ -563,12 +563,12 @@ export default function TasksPage() {
               </CardHeader>
               <CardContent>
                 {task.specialRequirement && (
-                  <p className="text-sm text-muted-foreground mb-3">
+                  <p className="text-sm text-muted-foreground dark:text-gray-400 mb-3">
                     {task.specialRequirement}
                   </p>
                 )}
-                <div className="flex items-center text-sm text-muted-foreground mb-2">
-                  <Calendar className="h-4 w-4 mr-2" />
+                <div className="flex items-center text-sm text-muted-foreground dark:text-gray-400 mb-2">
+                  <Calendar className="h-4 w-4 mr-2 text-muted-foreground dark:text-white" />
                   {task.scheduledTime ? (
                     <span>{format(new Date(task.scheduledTime), 'MMM d, yyyy h:mm a')}</span>
                   ) : (
@@ -577,51 +577,50 @@ export default function TasksPage() {
                 </div>
                 {task.assignedTo && (
                   <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <Building className="h-4 w-4 flex-shrink-0" />
-                    <span className="text-sm ">
-                      {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.name || 'Unknown Property'} 
-                      ({properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.propertyId || 'N/A'})
-                    </span>
-                  </div>
-                  {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer && (
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <User className="h-4 w-4 mr-2 flex-shrink-0" />
-                      <span className="truncate">
-                        Customer:{" "}
-                        {customers[properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer || '']?.name || 
-                          'Unknown Customer'}
+                    <div className="flex items-center space-x-2">
+                      <Building className="h-4 w-4 flex-shrink-0 text-muted-foreground dark:text-gray-400" />
+                      <span className="text-sm text-muted-foreground dark:text-gray-400">
+                        {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.name || 'Unknown Property'} 
+                        ({properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.propertyId || 'N/A'})
                       </span>
                     </div>
-                  )}
-                </div>
-                )}
-                {task.assignedTo && (
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <User className="h-4 w-4 mr-2 flex-shrink-0" />
-                    <span className="truncate">
-                      {task.assignedTo ? 
-                        `Assigned to: ${typeof task.assignedTo === 'string' ? 
-                          (userNames[task.assignedTo] || task.assignedTo) : 
-                          task.assignedTo.name}` 
-                        : 'Unassigned'}
-                    </span>
+                    {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer && (
+                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                        <User className="h-4 w-4 mr-2 flex-shrink-0 text-gray-600 dark:text-gray-400" />
+                        <span className="truncate">
+                          Customer:{" "}
+                          {customers[properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer || '']?.name || 
+                            'Unknown Customer'}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center text-sm text-muted-foreground dark:text-gray-400">
+                      <User className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <span className="truncate">
+                        {task.assignedTo ? 
+                          `Assigned to: ${typeof task.assignedTo === 'string' ? 
+                            (userNames[task.assignedTo] || task.assignedTo) : 
+                            task.assignedTo.name}` 
+                          : 'Unassigned'}
+                      </span>
+                    </div>
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="bg-muted/50 p-4 border-t pt-5">
+              <CardFooter className="bg-muted/50 dark:bg-gray-700/50 p-4 border-t border-gray-200 dark:border-gray-700 pt-5">
                 <div className="flex justify-end w-full items-center">
                   <div className="flex space-x-2">
-                  <Button
+                    <Button
                       variant={task.isActive ? 'outline' : 'default'}
                       size="sm"
                       onClick={() => toggleTaskStatus(task._id, task.isActive)}
+                      className="dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600"
                     >
                       {task.isActive ? 'Deactivate' : 'Activate'}
                     </Button>
                     <button
                       type="button"
-                      className="p-2 rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                      className="p-2 rounded-full text-blue-500 hover:bg-blue-50 hover:text-blue-600 dark:text-blue-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-300 transition-colors"
                       onClick={() => handleEditTask(task as Task)}
                       title="Edit task"
                     >
@@ -630,7 +629,7 @@ export default function TasksPage() {
                   </div>
                   <button
                     type="button"
-                    className="p-2 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    className="p-2 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       deleteTask(task._id);
@@ -649,21 +648,26 @@ export default function TasksPage() {
       {/* Create/Edit Task Dialog */}
       {isTaskDialogOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
             <CardHeader>
-              <CardTitle>{isEditing ? 'Edit Task' : 'Schedule New Task'}</CardTitle>
-              <CardDescription>{isEditing ? 'Update the task details' : 'Add a new cleaning task to the system'}</CardDescription>
+              <CardTitle className="text-gray-900 dark:text-white">
+                {isEditing ? 'Edit Task' : 'Schedule New Task'}
+              </CardTitle>
+              <CardDescription className="text-gray-600 dark:text-gray-400">
+                {isEditing ? 'Update the task details' : 'Add a new cleaning task to the system'}
+              </CardDescription>
             </CardHeader>
             <form onSubmit={handleCreateTask}>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="propertyId">Property</Label>
+                  <Label htmlFor="propertyId" className="text-gray-700 dark:text-gray-300">Property</Label>
                   <Select
                     value={newTask.propertyInfo?.propertyId || ''}
                     onValueChange={handlePropertySelect}
                     required
+                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                   >
-                    <SelectItem value="">Select a property</SelectItem>
+                    <SelectItem value="" className="text-gray-900 dark:text-white">Select a property</SelectItem>
                     {properties.map(property => (
                       <SelectItem key={property._id} value={property.propertyId}>
                         {property.name} ({property.propertyId})
@@ -675,14 +679,14 @@ export default function TasksPage() {
                 {/* Display selected property's requirements */}
                 {newTask.requirements.length > 0 && (
                   <div className="space-y-4 mt-4">
-                    <h4 className="text-sm font-medium">Room Requirements</h4>
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">Room Requirements</h4>
                     <div className="space-y-3">
                       {newTask.requirements.map((req, reqIndex) => (
-                        <div key={reqIndex} className="border rounded-lg p-3">
-                          <h5 className="font-medium mb-2">{req.roomType}</h5>
-                          <ul className="list-disc pl-5 space-y-1">
+                        <div key={reqIndex} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/50">
+                          <h5 className="font-medium mb-2 text-gray-900 dark:text-white">{req.roomType}</h5>
+                          <ul className="list-disc pl-5 space-y-1 text-gray-700 dark:text-gray-300">
                             {req.tasks.map((task, taskIndex) => (
-                              <li key={taskIndex} className="text-sm text-gray-600">
+                              <li key={taskIndex} className="text-sm text-gray-600 dark:text-gray-300">
                                 {task.description}
                               </li>
                             ))}
@@ -693,20 +697,22 @@ export default function TasksPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="scheduledTime">Scheduled Time</Label>
+                  <Label htmlFor="scheduledTime" className="text-gray-700 dark:text-gray-300">Scheduled Time</Label>
                   <Input
                     id="scheduledTime"
                     type="datetime-local"
                     value={newTask.scheduledTime ? format(new Date(newTask.scheduledTime), "yyyy-MM-dd'T'HH:mm") : ''}
                     onChange={(e) => setNewTask({ ...newTask, scheduledTime: new Date(e.target.value) })}
+                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="assignedTo">Assign To</Label>
+                  <Label htmlFor="assignedTo" className="text-gray-700 dark:text-gray-300">Assign To</Label>
                   <Select
                     value={newTask.assignedTo || ''}
                     onValueChange={(value) => setNewTask({ ...newTask, assignedTo: value })}
+                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                   >
                     <SelectItem value="">Select a cleaner</SelectItem>
                     {cleaners
@@ -719,25 +725,30 @@ export default function TasksPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="specialRequirement">Special Requirements</Label>
+                  <Label htmlFor="specialRequirement" className="text-gray-700 dark:text-gray-300">Special Requirements</Label>
                   <Textarea
                     id="specialRequirement"
                     placeholder="Any special requirements or notes..."
                     value={newTask.specialRequirement || ''}
                     onChange={(e) => setNewTask({ ...newTask, specialRequirement: e.target.value })}
+                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     rows={3}
                   />
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-end gap-2">
+              <CardFooter className="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 pt-4">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsTaskDialogOpen(false)}
+                  className="dark:border-gray-600 dark:text-white dark:hover:bg-gray-700"
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
+                <Button 
+                  type="submit"
+                  className="dark:bg-blue-600 dark:hover:bg-blue-700 dark:text-white"
+                >
                   {isEditing ? 'Update Task' : 'Create Task'}
                 </Button>
               </CardFooter>
