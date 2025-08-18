@@ -401,6 +401,34 @@ export default function TasksPage() {
     setIsTaskDialogOpen(true);
   };
 
+  // Calculate task status based on requirements completion
+  const getTaskStatus = (task: Task) => {
+    const totalRequirements = task.requirements?.length || 0;
+    if (totalRequirements === 0) return 'pending';
+    
+    const completedRequirements = task.requirements.filter(req => 
+      req.isCompleted || (req.tasks && req.tasks.every(t => t.isCompleted))
+    ).length;
+    
+    if (completedRequirements === 0) return 'pending';
+    if (completedRequirements < totalRequirements) return 'inprogress';
+    return 'completed';
+  };
+
+  // Get status badge styles
+  const getStatusBadgeStyles = (status: string) => {
+    const baseStyles = 'px-2 py-1 rounded-md text-xs font-medium';
+    switch (status) {
+      case 'completed':
+        return `${baseStyles} bg-green-100 text-green-800`;
+      case 'inprogress':
+        return `${baseStyles} bg-blue-100 text-blue-800`;
+      case 'pending':
+      default:
+        return `${baseStyles} bg-yellow-100 text-yellow-800`;
+    }
+  };
+
   // Toggle task status
   const toggleTaskStatus = async (taskId: string, isActive: boolean) => {
     try {
@@ -507,7 +535,15 @@ export default function TasksPage() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredTasks.map((task) => (
             <Card key={task._id} className="overflow-hidden">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 pt-10 relative">
+                <div className={getStatusBadgeStyles(getTaskStatus(task))} style={{
+                  position: 'absolute',
+                  top: '0.75rem',
+                  left: '1rem',
+                  zIndex: 10
+                }}>
+                  {getTaskStatus(task).charAt(0).toUpperCase() + getTaskStatus(task).slice(1)}
+                </div>
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg font-medium">

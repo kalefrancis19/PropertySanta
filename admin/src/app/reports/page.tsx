@@ -12,35 +12,14 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import DashboardLayout from '@/components/DashboardLayout';
-import { propertyAPI, Property } from '@/services/api';
+import { taskAPI, propertyAPI, userAPI, Task, TaskRequirement, Photo, Issue, AIFeedback, Property } from '@/services/api';
 import { format } from 'date-fns';
 
-// Extend the Property interface to include issues, aiFeedback, and photos
-interface PropertyWithIssues extends Omit<Property, 'issues' | 'aiFeedback' | 'photos'> {
-  issues?: Array<{
-    _id: string;
-    description: string;
-    status: 'open' | 'in_progress' | 'resolved';
-    createdAt: string;
-    updatedAt: string;
-  }>;
-  aiFeedback?: Array<{
-    feedback: string;
-    improvements: string[];
-    confidence: number;
-    suggestions: string[];
-    _id: string;
-    createdAt: string;
-    updatedAt: string;
-  }>;
-  photos?: Array<{
-    _id: string;
-    url: string;
-    type: string;
-    notes?: string;
-    createdAt: string;
-    updatedAt: string;
-  }>;
+// Extend the Task interface to include property name and address
+interface TaskWithProperty extends Omit<Task, 'assignedTo'> {
+  assignedTo?: string | { _id: string; name: string; email: string };
+  propertyName?: string;
+  propertyAddress?: string;
 }
 
 interface RoomFeedback {
@@ -48,6 +27,7 @@ interface RoomFeedback {
   score: number;
   feedback: string;
   suggestions: string[];
+  improvements?: string[]; // Make improvements optional
   confidence: number;
 }
 
@@ -55,15 +35,18 @@ interface CleaningReport {
   id: string;
   date: string;
   cleaner: string;
+  customer: string;
   property: string;
+  propertyId?: string;
   duration: string;
   rating: number;
   photos: number;
+  uploadedPhotos?: any[];
   rooms: string[];
   issues: string[];
   roomFeedbacks: RoomFeedback[];
   notes: string;
-  status: 'completed' | 'in-progress' | 'scheduled';
+  status: 'completed' | 'in-progress' | 'pending';
   lastCleaned?: string;
   nextCleaning?: string;
   progress?: number;
@@ -109,148 +92,213 @@ function formatMinutes(totalMinutes: number): string {
 export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState<CleaningReport | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [properties, setProperties] = useState<PropertyWithIssues[]>([]);
+  const [tasks, setTasks] = useState<TaskWithProperty[]>([]);
+  const [properties, setProperties] = useState<Record<string, any>>({});
+  const [cleaners, setCleaners] = useState<Array<{_id: string, name: string, email: string}>>([]);
+  const [customers, setCustomers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
 
-  // Fetch properties on component mount
+  // Fetch all necessary data on component mount
   useEffect(() => {
-    const fetchProperties = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await propertyAPI.getAll();
-        setProperties(data);
+        
+        // 1. Fetch tasks
+        const tasksData = await taskAPI.getAll();
+        setTasks(tasksData);
+
+        // 2. Collect unique property IDs
+        const propertyIds = Array.from(new Set(
+          tasksData
+            .map(task => task.propertyId)
+            .filter(Boolean)
+        )) as string[];
+
+        // 3. Fetch properties
+        const propertiesResponse = propertyIds.length > 0 
+          ? await Promise.all(propertyIds.map(id => 
+              propertyAPI.getById(id).catch(() => null)
+            ))
+          : [];
+
+        // 4. Convert properties array to record for easy lookup
+        const propertiesRecord = propertiesResponse.reduce((acc: Record<string, any>, property) => {
+          if (property) acc[property._id] = property;
+          return acc;
+        }, {});
+
+        // 5. Fetch all users and separate into cleaners and customers
+        const allUsers = await userAPI.getAll();
+        const cleanersList = allUsers
+          .filter(user => user.role === 'cleaner')
+          .map(({ _id, name, email }) => ({ _id, name, email }));
+
+        // Create a map of customer IDs to names
+        const customersMap = allUsers
+          .filter(user => user.role === 'customer')
+          .reduce((acc, user) => {
+            acc[user._id] = user.name;
+            return acc;
+          }, {} as Record<string, string>);
+
+        setProperties(propertiesRecord);
+        setCleaners(cleanersList);
+        setCustomers(customersMap);
+        
       } catch (err) {
-        setError('Failed to load properties. Please try again later.');
-        console.error('Error fetching properties:', err);
+        setError('Failed to load data. Please try again later.');
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProperties();
+    fetchData();
   }, []);
 
-  // Calculate average rating from AI feedback scores
-  const calculateAverageRating = (aiFeedback: Array<{feedback: string}>) => {
-    console.log('AI Feedback received:', JSON.stringify(aiFeedback, null, 2));
-    
-    if (!aiFeedback || aiFeedback.length === 0) {
-      console.log('No AI feedback available, using default rating 4.5');
-      return 4.5; // Default to 4.5 if no feedback
-    }
-    
-    const scores = aiFeedback.map(feedback => {
-      // Extract the score percentage from feedback string (e.g., "Score: 95%")
-      const match = feedback.feedback.match(/Score:\s*(\d+)%/);
-      const score = match ? parseInt(match[1], 10) : 0;
-      console.log(`Processing feedback: "${feedback.feedback}" -> Extracted score: ${score}`);
-      return score;
-    }).filter(score => !isNaN(score));
-    
-    console.log('Scores extracted:', scores);
-    
-    if (scores.length === 0) {
-      console.log('No valid scores found in AI feedback, using default rating 4.5');
-      return 4.5; // Default if no valid scores found
-    }
-    
-    // Calculate average and convert to 5-point scale
-    const averageScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    const rating = parseFloat((averageScore / 20).toFixed(1));
-    console.log(`Calculated average score: ${averageScore}% -> Rating: ${rating}/5`);
-    
-    return rating; // Convert percentage to 5-point scale (e.g., 90% -> 4.5)
-  };
-
-  // Transform properties to reports format and filter out properties with no completed tasks
+  // Transform tasks to reports format
   const reports = useMemo<CleaningReport[]>(() => {
-    return properties
-      .flatMap((property: PropertyWithIssues) => {
-        const roomTasks = property.roomTasks || [];
-        const totalTasks = roomTasks.length;
-        const completedTasks = roomTasks.filter(room => room.isCompleted).length;
-
-        if (completedTasks === 0) return [];
-
-        const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-        const status: 'completed' | 'in-progress' | 'scheduled' = 
-          progress >= 100 ? 'completed' : 'in-progress';
-
-        // Calculate total estimated time from all room tasks
-        const totalMinutes = roomTasks.reduce((total, room) => {
-          return total + parseTimeString(room.estimatedTime);
-        }, 0);
-
-        // Calculate rating from AI feedback if available
-        console.log('Processing property:', property._id);
-        console.log('AI Feedback exists:', !!property.aiFeedback);
-        if (property.aiFeedback) {
-          console.log('AI Feedback length:', property.aiFeedback.length);
-        }
-        
-        const rating = property.aiFeedback && property.aiFeedback.length > 0
-          ? calculateAverageRating(property.aiFeedback)
-          : 4.5; // Default rating if no feedback
+    return tasks.map((task: TaskWithProperty) => {
+      // Get property with fallback and customer name
+      const property = properties[task.propertyId] || {
+        _id: task.propertyId,
+        name: `Property #${task.propertyId?.slice(-6) || 'N/A'}`,
+        customer: null
+      };
+      
+      // Get customer name if available
+      const customerName = property.customer 
+        ? typeof property.customer === 'string' 
+          ? customers[property.customer] || `Customer #${property.customer.slice(-6)}`
+          : property.customer.name || `Customer #${property.customer._id?.slice(-6) || 'N/A'}`
+        : 'Unknown Customer';
+      
+      // Get cleaner name from userAPI
+      let cleanerName = 'Not assigned';
+      if (task.assignedTo) {
+        const cleanerId = typeof task.assignedTo === 'string' 
+          ? task.assignedTo 
+          : task.assignedTo._id;
           
-        console.log('Final rating for property:', rating);
-
-        // Process AI feedback for each room
-        const roomFeedbacks: RoomFeedback[] = [];
-        if (property.aiFeedback && property.aiFeedback.length > 0) {
-          property.aiFeedback.forEach(fb => {
-            const match = fb.feedback.match(/([a-zA-Z]+)\s+cleaning analysis - Score:\s*(\d+)%/i);
-            if (match) {
-              const roomType = match[1].charAt(0).toUpperCase() + match[1].slice(1);
-              const score = parseInt(match[2], 10);
-              roomFeedbacks.push({
-                roomType,
-                score,
-                feedback: fb.feedback,
-                improvements: fb.improvements || [],
-                suggestions: fb.suggestions || [],
-                confidence: fb.confidence || 0
-              });
-            }
-          });
+        // Find cleaner in the fetched cleaners data
+        const cleaner = cleaners.find(c => c._id === cleanerId);
+        
+        if (cleaner?.name) {
+          cleanerName = cleaner.name;
+        } else if (typeof task.assignedTo === 'object' && task.assignedTo.name) {
+          cleanerName = task.assignedTo.name;
+        } else if (cleanerId) {
+          cleanerName = `Cleaner #${cleanerId.slice(-6)}`;
         }
+      }
 
-        const report: CleaningReport = {
-          id: property._id || '',
-          date: property.updatedAt ? format(new Date(property.updatedAt), 'yyyy-MM-dd') : 'N/A',
-          cleaner: property.assignedTo  || 'Not assigned',
-          property: property.name || property.propertyId || 'Unnamed Property',
-          duration: totalMinutes > 0 ? formatMinutes(totalMinutes) : 'N/A',
-          rating: rating,
-          photos: property.photos?.length || 0,
-          uploadedPhotos: property.photos,
-          rooms: roomTasks.map((room: { roomType: string }) => room.roomType),
-          issues: property.issues?.map(
-            (issue: { description: string; location?: string; type?: string }) =>
-              `${issue.location ? `In ${issue.location}, ` : ''}${issue.type ? `${issue.type} : ` : ''} ${issue.description}`
-          ) || [],
-          roomFeedbacks,
-          notes: property.instructions || 'No additional notes.',
-          status,
-          lastCleaned: property.updatedAt ? format(new Date(property.updatedAt), 'MMM d, yyyy') : 'Never',
-          nextCleaning: property.updatedAt 
-            ? format(new Date(new Date(property.updatedAt).setDate(new Date(property.updatedAt).getDate() + 7)), 'MMM d, yyyy')
-            : 'Not scheduled',
-          progress
-        };
+      // Calculate task status and progress
+      const requirements = task.requirements || [];
+      const completedRequirements = requirements.filter(req => 
+        req.isCompleted || (req.tasks && req.tasks.every(t => t.isCompleted))
+      ).length;
 
-        return [report];
-      })
-      .flat();
-  }, [properties]);
+      const totalTasks = requirements.length;
+      const progress = totalTasks > 0 ? Math.round((completedRequirements / totalTasks) * 100) : 0;
+      let status: 'completed' | 'in-progress' | 'pending' = 'pending';
+      
+      if (progress >= 100) {
+        status = 'completed';
+      } else if (progress > 0) {
+        status = 'in-progress';
+      }
+
+      // Calculate rating based on AI feedback if available, otherwise use task completion
+      let rating = 0;
+      let roomFeedbacks: RoomFeedback[] = [];
+
+      if (task.aiFeedback && task.aiFeedback.length > 0) {
+        // Use AI feedback for rating if available
+        roomFeedbacks = task.aiFeedback.map(fb => {
+          const match = fb.feedback?.match(/([a-zA-Z]+)\s+cleaning analysis - Score:\s*(\d+)%/i);
+          if (match) {
+            const roomType = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+            const score = parseInt(match[2], 10);
+            return {
+              roomType,
+              score, // Store the original percentage (0-100)
+              feedback: fb.feedback || '',
+              suggestions: fb.suggestions || [],
+              confidence: fb.confidence || 0
+            };
+          }
+          return null;
+        }).filter(Boolean) as RoomFeedback[];
+        
+        // Calculate average rating from room feedbacks (convert to 5-point scale for rating)
+        if (roomFeedbacks.length > 0) {
+          const totalScore = roomFeedbacks.reduce((sum, fb) => sum + (fb?.score || 0), 0);
+          const averagePercentage = totalScore / roomFeedbacks.length;
+          rating = parseFloat((averagePercentage / 20).toFixed(1)); // Convert to 5-point scale for the overall rating
+        }
+      } else {
+        // Fallback to task completion based rating
+        if (requirements.length > 0) {
+          roomFeedbacks = requirements
+            .filter(req => req.roomType)
+            .map(req => {
+              const roomTasks = req.tasks || [];
+              const completedTasks = roomTasks.filter(t => t.isCompleted).length;
+              const roomRating = roomTasks.length > 0 ? (completedTasks / roomTasks.length) * 5 : 0;
+              return {
+                roomType: req.roomType,
+                score: parseFloat(roomRating.toFixed(1)),
+                feedback: '',
+                suggestions: [],
+                confidence: 0
+              };
+            });
+          
+          // Calculate average rating
+          if (roomFeedbacks.length > 0) {
+            const totalScore = roomFeedbacks.reduce((sum, fb) => sum + fb.score, 0);
+            rating = parseFloat((totalScore / roomFeedbacks.length).toFixed(1));
+          }
+        }
+      }
+
+      return {
+        id: task._id || '',
+        date: task.updatedAt ? format(new Date(task.updatedAt), 'yyyy-MM-dd') : 'N/A',
+        cleaner: cleanerName,
+        customer: customerName,
+        property: property?.name || `Property #${task.propertyId?.slice(-6) || 'N/A'}`,
+        propertyId: task.propertyId,
+        duration: task.scheduledTime ? format(new Date(task.scheduledTime), 'MMM d, yyyy hh:mm a') : 'Not scheduled',
+        rating,
+        photos: task.photos?.length || 0,
+        uploadedPhotos: task.photos || [],
+        rooms: requirements.map(req => req.roomType).filter(Boolean) as string[],
+        issues: (task.issues || []).map(issue => 
+          `${issue.location ? `In ${issue.location}, ` : ''}${issue.type ? `${issue.type}: ` : ''}${issue.description}`
+        ),
+        roomFeedbacks,
+        notes: task.specialRequirement || 'No additional notes.',
+        status,
+        lastCleaned: task.updatedAt ? format(new Date(task.updatedAt), 'MMM d, yyyy') : 'Never',
+        nextCleaning: task.scheduledTime 
+          ? format(new Date(task.scheduledTime), 'MMM d, yyyy')
+          : 'Not scheduled',
+        progress
+      };
+    });
+  }, [tasks, properties, cleaners, customers]);
 
   const filteredReports = reports.filter(report => 
-    filterStatus === 'all' || 
-    (filterStatus === 'completed' && report.status === 'completed') ||
-    (filterStatus === 'in-progress' && report.status === 'in-progress') ||
-    (filterStatus === 'scheduled' && report.status === 'scheduled')
+    report.status !== 'pending' && (
+      filterStatus === 'all' || 
+      (filterStatus === 'completed' && report.status === 'completed') ||
+      (filterStatus === 'in-progress' && report.status === 'in-progress')
+    )
   );
 
   return (
@@ -270,7 +318,7 @@ export default function ReportsPage() {
             <option value="all">All Reports</option>
             <option value="completed">Completed</option>
             <option value="in-progress">In Progress</option>
-            <option value="scheduled">Scheduled</option>
+            <option value="pending">Pending</option>
           </select>
         </div>
 
@@ -291,8 +339,10 @@ export default function ReportsPage() {
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <h3 className="font-medium text-gray-900 dark:text-white">{report.property}</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{report.date}</p>
+                        <h1 className="text-lg font-semibold text-gray-900 dark:text-white uppercase">Task #{report.id.slice(-6)}</h1>
+                        <h3 className="font-medium text-gray-900 dark:text-white mt-1">Property: {report.property}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Customer: {report.customer}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{report.date}</p>
                       </div>
                       <div className="flex items-center space-x-1">
                         <Star className="h-4 w-4 text-yellow-400 fill-current" />
@@ -302,7 +352,7 @@ export default function ReportsPage() {
                     <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
                       <span className="flex items-center space-x-1">
                         <User className="h-3 w-3" />
-                        <span>{report.cleaner}</span>
+                        <span>cleaner: {report.cleaner}</span>
                       </span>
                       <span className="flex items-center space-x-1">
                         <Camera className="h-3 w-3" />
@@ -359,7 +409,7 @@ export default function ReportsPage() {
                           <div className="flex items-center space-x-3">
                             <Calendar className="h-5 w-5 text-primary-600 dark:text-primary-400" />
                             <div>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">Duration</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">Scheduled Time</p>
                               <p className="font-medium text-gray-900 dark:text-white">{selectedReport.duration}</p>
                             </div>
                           </div>
@@ -403,13 +453,13 @@ export default function ReportsPage() {
                                 <div key={index} className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                                   <div className="flex justify-between items-start">
                                     <h4 className="font-medium text-green-800 dark:text-green-200">
-                                      {feedback.roomType} - {feedback.score}%
+                                      {feedback.roomType} - {Math.round(feedback.score)}%{/* Ensure we show whole number percentage */}
                                     </h4>
                                   </div>
-                                  {feedback.improvements.length > 0 && (
+                                  {feedback.improvements?.length > 0 && (
                                     <div className="mt-3">
                                       <h5 className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
-                                        improvements:
+                                        Improvements:
                                       </h5>
                                       <ul className="list-disc list-inside text-sm text-green-700 dark:text-green-300 space-y-1">
                                         {feedback.improvements.map((improvement, idx) => (
@@ -455,7 +505,7 @@ export default function ReportsPage() {
                       </div>
 
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Cleaner Notes</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Specail Requirements</h3>
                         <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                           <p className="text-sm text-gray-700 dark:text-gray-300">{selectedReport.notes}</p>
                         </div>
