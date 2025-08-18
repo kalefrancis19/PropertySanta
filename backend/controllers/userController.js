@@ -20,22 +20,21 @@ exports.createUser = async (req, res) => {
     // Check if user exists
     let user = await User.findOne({ email });
     if (user) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'User already exists' 
+      });
     }
 
-    // Create new user
+    // Create new user - password will be hashed by the pre-save hook
     user = new User({
       name,
       email,
-      password,
-      role: role || 'cleaner',
+      password, // Plain password - will be hashed by pre-save hook
+      role: role || 'customer',
       phone: phone || '',
       isActive: true
     });
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
 
     await user.save();
     
@@ -45,21 +44,37 @@ exports.createUser = async (req, res) => {
     delete user.otp;
     delete user.otpExpiresAt;
 
-    res.status(201).json(user);
+    res.status(201).json({
+      success: true,
+      data: user
+    });
   } catch (error) {
     console.error('Error creating user:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error creating user',
+      error: error.message 
+    });
   }
 };
 
 // Update a user
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email, role, phone, isActive } = req.body;
+    const { name, email, password, role, phone, isActive } = req.body;
+    
+    // Create update object with provided fields
+    const updateFields = { name, email, role, phone, isActive };
+    
+    // If password is provided, hash it before updating
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      updateFields.password = await bcrypt.hash(password, salt);
+    }
     
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { name, email, role, phone, isActive },
+      updateFields,
       { new: true }
     ).select('-password -otp -otpExpiresAt');
 

@@ -228,63 +228,6 @@ const initializeDatabase = async () => {
       console.log('✅ Sample property created successfully.');
     }
 
-    // --- Add sample Task data ---
-    const existingTasks = await Task.countDocuments();
-    if (existingTasks === 0) {
-      const sampleTask = new Task({
-        propertyId: 'EO-1208-RDU',
-        requirements: [
-          {
-            roomType: 'kitchen',
-            tasks: [
-              { description: 'Clean countertops' },
-              { description: 'Mop floor' }
-            ]
-          },
-          {
-            roomType: 'living room',
-            tasks: [
-              { description: 'Vacuum carpet' },
-              { description: 'Dust shelves' }
-            ]
-          }
-        ],
-        specialRequirement: 'Use eco-friendly cleaning products',
-        scheduledTime: new Date('2025-09-17T10:00:00Z'),
-        assignedTo: "64b5f1f0e3a3c2a1b0c4d5e6", 
-        photos: [
-          {
-            url: 'https://example.com/photos/kitchen_before.jpg',
-            type: 'before',
-            localPath: '/uploads/kitchen_before.jpg',
-            tags: ['kitchen', 'countertop'],
-            notes: 'Initial condition of the kitchen'
-          }
-        ],
-        issues: [
-          {
-            type: 'Damage',
-            description: 'Scratch on the kitchen countertop',
-            location: 'kitchen',
-            notes: 'Reported by cleaning staff',
-            isResolved: false
-          }
-        ],
-        aiFeedback: [
-          {
-            feedback: 'Countertop needs deep cleaning',
-            improvements: ['Use stronger cleaner', 'Wipe edges carefully'],
-            confidence: 0.85,
-            suggestions: ['Schedule follow-up cleaning']
-          }
-        ],
-        chatHistory: '2025-08-16: Task assigned to elite cleaner.',
-        isActive: true
-      });
-      await sampleTask.save();
-      console.log('✅ Sample task created successfully.');
-    }
-
   } catch (error) {
     console.error('❌ Error initializing sample data:', error);
   }
