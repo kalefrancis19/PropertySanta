@@ -3,6 +3,7 @@
 import { useState, useEffect, forwardRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { taskAPI, type Task, type CreateTaskRequest as BaseCreateTaskRequest, type UpdateTaskRequest, userAPI, propertyAPI, type Property } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Extend the CreateTaskRequest type to include propertyInfo
 type CreateTaskRequest = BaseCreateTaskRequest & {
@@ -169,8 +170,31 @@ const SelectPlaceholder = ({ children, ...props }: { children: React.ReactNode }
     {children}
   </div>
 );
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: 'customer';
+}
 
 export default function TasksPage() {
+  const { user: authUser, loading: authLoading } = useAuth();
+  const currentUser = authUser as User | null;
+
+  useEffect(() => {
+    if (!authLoading && currentUser) {
+      console.log('Current user:---', currentUser._id);
+    }
+  }, [authLoading, currentUser]);
+
+  // useEffect(() => {
+  //   if (!authLoading && currentUser) {
+  //     fetchProperties();
+  //   } else if (!authLoading) {
+  //     setLoading(false);
+  //   }
+  // }, [currentUser, authLoading]);
+
   const router = useRouter();
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -226,52 +250,53 @@ export default function TasksPage() {
   // Fetch data (cleaners, properties, tasks, and user names)
   useEffect(() => {
     let isMounted = true;
-
+  
     const fetchData = async () => {
       try {
-        const [cleanersData, propertiesData, tasksData, usersData] = await Promise.all([
+        const [usersData, propertiesData, tasksData] = await Promise.all([
           userAPI.getAll(),
           propertyAPI.getAll(),
-          taskAPI.getAll(),
-          userAPI.getAll() // Fetch all users to get names
+          taskAPI.getAll()
         ]);
-        
-        // Filter cleaners from all users
-        const filteredCleaners = usersData.filter((user: any) => user.role === 'cleaner');
-
-        if (isMounted) {
-          setCleaners(filteredCleaners);
-          setProperties(propertiesData);
-          setTasks(tasksData);
-          
-          // Create a map of user IDs to names
-          const namesMap: Record<string, string> = {};
-          const customersMap: Record<string, {name: string, email: string}> = {};
-          
-          usersData.forEach((user: any) => {
-            namesMap[user._id] = user.name;
-            if (user.role === 'customer') {
-              customersMap[user._id] = { name: user.name, email: user.email };
-            }
-          });
-          setUserNames(namesMap);
-          setCustomers(customersMap);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+  
+        if (!isMounted) return;
+  
+        // Filter properties owned by current user
+        const userProperties = propertiesData.filter((p: Property) => p.customer === currentUser?._id);
+        setProperties(userProperties);
+  
+        // Filter tasks for user's properties
+        const propertyIds = userProperties.map(p => p._id);
+        const userTasks = tasksData.filter((t: Task) => propertyIds.includes(t.propertyId));
+        setTasks(userTasks);
+  
+        // Map user names
+        const namesMap: Record<string, string> = {};
+        usersData.forEach((u: User) => {
+          namesMap[u._id] = u.name;
+        });
+        setUserNames(namesMap);
+  
+        // Cleaners
+        const cleanersList = usersData.filter((u: User) => u.role === 'cleaner');
+        setCleaners(cleanersList);
+  
+        setIsLoading(false);
+      } catch (err) {
+        console.error(err);
+        toast({ title: 'Error', description: 'Failed to fetch data', variant: 'destructive' });
+        setIsLoading(false);
       }
     };
-
-    fetchData();
-
+  
+    if (currentUser) fetchData();
+    else setIsLoading(false);
+  
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentUser]);
+  
 
   // Fetch tasks
   useEffect(() => {
@@ -475,8 +500,12 @@ export default function TasksPage() {
     }
   };
 
-  // Filter tasks based on search
+  // Filter tasks based on search and ensure property exists
   const filteredTasks = tasks.filter(task => {
+    const property = properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId);
+    // Skip tasks with unknown properties
+    if (!property) return false;
+    
     const matchesSearch = task.propertyId.toLowerCase().includes(filters.search.toLowerCase()) ||
       task.specialRequirement?.toLowerCase().includes(filters.search.toLowerCase());
     
@@ -584,7 +613,7 @@ export default function TasksPage() {
                         ({properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.propertyId || 'N/A'})
                       </span>
                     </div>
-                    {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer && (
+                    {/* {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer && (
                       <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                         <User className="h-4 w-4 mr-2 flex-shrink-0 text-gray-600 dark:text-gray-400" />
                         <span className="truncate">
@@ -593,7 +622,7 @@ export default function TasksPage() {
                             'Unknown Customer'}
                         </span>
                       </div>
-                    )}
+                    )} */}
                     <div className="flex items-center text-sm text-muted-foreground dark:text-gray-400">
                       <User className="h-4 w-4 mr-2 flex-shrink-0" />
                       <span className="truncate">

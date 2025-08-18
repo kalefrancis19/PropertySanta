@@ -14,6 +14,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import DashboardLayout from '@/components/DashboardLayout';
 import { taskAPI, propertyAPI, userAPI, Task, TaskRequirement, Photo, Issue, AIFeedback, Property } from '@/services/api';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Extend the Task interface to include property name and address
 interface TaskWithProperty extends Omit<Task, 'assignedTo'> {
@@ -88,6 +89,12 @@ function formatMinutes(totalMinutes: number): string {
 
   return parts.join(' ');
 }
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: 'customer';
+}
 
 export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState<CleaningReport | null>(null);
@@ -100,69 +107,106 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
+  const { user: authUser, loading: authLoading } = useAuth();
+  const currentUser = authUser as User | null;
 
+  useEffect(() => {
+    if (!authLoading && currentUser) {
+      console.log('Current user:---', currentUser._id);
+    }
+  }, [authLoading, currentUser]);
+  
   // Fetch all necessary data on component mount
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchData = async () => {
+      if (!currentUser) return;
+      
       try {
         setLoading(true);
         
-        // 1. Fetch tasks
+        // 1. Fetch all tasks
         const tasksData = await taskAPI.getAll();
-        setTasks(tasksData);
-
-        // 2. Collect unique property IDs
-        const propertyIds = Array.from(new Set(
-          tasksData
-            .map(task => task.propertyId)
-            .filter(Boolean)
-        )) as string[];
-
-        // 3. Fetch properties
-        const propertiesResponse = propertyIds.length > 0 
-          ? await Promise.all(propertyIds.map(id => 
-              propertyAPI.getById(id).catch(() => null)
-            ))
-          : [];
-
-        // 4. Convert properties array to record for easy lookup
-        const propertiesRecord = propertiesResponse.reduce((acc: Record<string, any>, property) => {
+        
+        // 2. Fetch properties first to filter tasks
+        const propertiesData = await propertyAPI.getAll();
+        
+        // 3. Filter properties to only include those owned by the current user
+        const userProperties = propertiesData.filter(
+          (p: Property) => p.customer === currentUser._id
+        );
+        
+        // 4. Create a map of property IDs for quick lookup
+        const userPropertyIds = userProperties.map(p => p._id);
+        
+        // 5. Filter tasks to only include those for the user's properties
+        const userTasks = tasksData.filter((task: Task) => 
+          userPropertyIds.includes(task.propertyId)
+        );
+        
+        // 6. Convert properties array to record for easy lookup
+        const propertiesRecord = userProperties.reduce((acc: Record<string, any>, property) => {
           if (property) acc[property._id] = property;
           return acc;
         }, {});
 
-        // 5. Fetch all users and separate into cleaners and customers
+        // 7. Fetch all users and separate into cleaners and customers
         const allUsers = await userAPI.getAll();
         const cleanersList = allUsers
           .filter(user => user.role === 'cleaner')
           .map(({ _id, name, email }) => ({ _id, name, email }));
 
-        // Create a map of customer IDs to names
-        const customersMap = allUsers
-          .filter(user => user.role === 'customer')
-          .reduce((acc, user) => {
-            acc[user._id] = user.name;
-            return acc;
-          }, {} as Record<string, string>);
+        // Create a map of customer IDs to names (only for current user)
+        const customersMap = {
+          [currentUser._id]: currentUser.name
+        };
 
-        setProperties(propertiesRecord);
-        setCleaners(cleanersList);
-        setCustomers(customersMap);
+        if (isMounted) {
+          setTasks(userTasks);
+          setProperties(propertiesRecord);
+          setCleaners(cleanersList);
+          setCustomers(customersMap);
+        }
         
       } catch (err) {
-        setError('Failed to load data. Please try again later.');
         console.error('Error fetching data:', err);
+        if (isMounted) {
+          setError('Failed to load data. Please try again later.');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchData();
-  }, []);
+    if (!authLoading && currentUser) {
+      fetchData();
+    } else if (!authLoading) {
+      setLoading(false);
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser, authLoading]);
 
-  // Transform tasks to reports format
+  // Transform tasks to reports format, filtered by current user's properties
   const reports = useMemo<CleaningReport[]>(() => {
-    return tasks.map((task: TaskWithProperty) => {
+    if (!currentUser) return [];
+    
+    // Get the list of property IDs owned by the current user
+    const userPropertyIds = Object.values(properties)
+      .filter(p => p.customer === currentUser._id)
+      .map(p => p._id);
+      
+    // Filter tasks to only include those for the user's properties
+    const userTasks = tasks.filter(task => 
+      userPropertyIds.includes(task.propertyId)
+    );
+    
+    return userTasks.map((task: TaskWithProperty) => {
       // Get property with fallback and customer name
       const property = properties[task.propertyId] || {
         _id: task.propertyId,
@@ -291,10 +335,11 @@ export default function ReportsPage() {
         progress
       };
     });
-  }, [tasks, properties, cleaners, customers]);
+  }, [tasks, properties, cleaners, customers, currentUser]);
 
   const filteredReports = reports.filter(report => 
-    report.status !== 'pending' && (
+    // Only show completed reports by default
+    (filterStatus === 'all' ? report.status === 'completed' : report.status === filterStatus) && (
       filterStatus === 'all' || 
       (filterStatus === 'completed' && report.status === 'completed') ||
       (filterStatus === 'in-progress' && report.status === 'in-progress')
