@@ -1,18 +1,19 @@
-import axios from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 console.log('API_BASE_URL:', API_BASE_URL);
 
 // Get token from localStorage
-const getAuthToken = () => {
+const getAuthToken = (): string | null => {
   if (typeof window !== 'undefined') {
     return localStorage.getItem('token');
   }
   return null;
 };
 
-const api = axios.create({
+// Create axios instance with type
+const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -31,7 +32,11 @@ api.interceptors.request.use((config) => {
 // Add request interceptor for debugging
 api.interceptors.request.use(
   (config) => {
-    console.log('Making request to:', config.baseURL + config.url);
+    if (config.baseURL && config.url) {
+      console.log('Making request to:', config.baseURL + config.url);
+    } else {
+      console.log('Making request to:', config.url || 'unknown');
+    }
     return config;
   },
   (error) => {
@@ -73,7 +78,6 @@ export interface Property {
   }>;
   createdAt?: string;
   updatedAt?: string;
-  customer?: string;
 }
 
 export interface CreatePropertyRequest {
@@ -362,8 +366,8 @@ export interface User {
   phone?: string;
   role: 'admin' | 'cleaner' | 'customer';
   isActive: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface CreateUserRequest {
@@ -451,5 +455,16 @@ export const userAPI = {
     }
   },
 };
+
+// Export the api instance
+export { api };
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  user?: T;
+  token?: string;
+}
 
 export default api;

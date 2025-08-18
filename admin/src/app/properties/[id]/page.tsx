@@ -71,7 +71,9 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
         const roomTasksTransformed: RoomTask[] = (data.roomTasks || []).map(room => ({
           roomType: room.roomType,
           tasks: (room.tasks || []).map(task => ({
-            description: task.description
+            description: task.description,
+            Regular: task.Regular || '',
+            isCompleted: task.isCompleted || false
           }))
         }));
 
@@ -430,12 +432,12 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
                               Remove
                             </button>
                           </div>
-                          <div>
+                          <div className="mt-1">
                             <input
                               type="text"
                               value={task.Regular || ''}
                               onChange={(e) => updateTaskRegular(roomIndex, taskIndex, e.target.value)}
-                              placeholder="Regular maintenance notes"
+                              placeholder="e.g., weekly, biweekly, monthly"
                               className="w-full px-2 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             />
                           </div>

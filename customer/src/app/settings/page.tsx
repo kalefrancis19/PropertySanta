@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   User, 
   Bell, 
@@ -17,8 +17,18 @@ import {
   Moon
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { useAuth } from '@/contexts/AuthContext';
+
+interface UserProfile {
+  name: string;
+  email: string;
+  phone?: string;
+  firstName?: string;
+  lastName?: string;
+}
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [showPassword, setShowPassword] = useState(false);
   const { theme, toggleTheme } = useTheme();
@@ -69,9 +79,12 @@ export default function SettingsPage() {
                   <Sun className="h-5 w-5" />
                 )}
               </button>
-              <button className="bg-gradient-to-r from-primary-600 to-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-primary-700 hover:to-blue-700 flex items-center space-x-2 transition-all duration-200 transform hover:scale-105">
+              <button 
+                onClick={() => alert('Please contact support to update your profile information.')}
+                className="bg-gradient-to-r from-primary-600 to-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-primary-700 hover:to-blue-700 flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"
+              >
                 <Save className="h-4 w-4" />
-                <span>Save Changes</span>
+                <span>Request Update</span>
               </button>
             </div>
           </div>
@@ -116,43 +129,51 @@ export default function SettingsPage() {
                       <User className="h-10 w-10 text-primary-600 dark:text-primary-400" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">John Doe</h3>
-                      <p className="text-gray-600 dark:text-gray-400">john.doe@example.com</p>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {user?.name || 'User'}
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400">
+                        {user?.email || 'No email provided'}
+                      </p>
                     </div>
                   </div>
 
                   {/* Personal Information */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">First Name</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Full Name</label>
                       <input
                         type="text"
-                        defaultValue="John"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Last Name</label>
-                      <input
-                        type="text"
-                        defaultValue="Doe"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        value={user?.name || ''}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white cursor-not-allowed"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
                       <input
                         type="email"
-                        defaultValue="john.doe@example.com"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        value={user?.email || ''}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white cursor-not-allowed"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Phone</label>
                       <input
                         type="tel"
-                        defaultValue="+1 (555) 123-4567"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        value={user?.phone || 'Not provided'}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Account Type</label>
+                      <input
+                        type="text"
+                        value={user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Customer'}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white cursor-not-allowed"
                       />
                     </div>
                   </div>
