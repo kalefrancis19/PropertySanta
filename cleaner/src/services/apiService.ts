@@ -179,8 +179,9 @@ class ApiService {
   }
 
   // Task endpoints
-  async getTasks(): Promise<ApiResponse> {
-    return this.request('/tasks');
+  async getTasks(params?: Record<string, any>): Promise<ApiResponse> {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/tasks${queryString}`);
   }
 
   async getPropertyDetails(propertyId: string): Promise<ApiResponse> {

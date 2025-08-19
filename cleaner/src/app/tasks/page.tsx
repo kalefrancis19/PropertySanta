@@ -54,8 +54,10 @@ export default function TasksPage() {
         loadedProperties.current = new Set();
         setLoading(true);
         
-        // Make a fresh request to the server
-        const response = await apiService.getTasks();
+        // Make a fresh request to the server with cleaner filter
+        const response = await apiService.getTasks({
+          assignedTo: authState.user?._id
+        });
         if (response.success) {
           setTasks(response.data);
         } else {
@@ -81,7 +83,10 @@ export default function TasksPage() {
         setLoading(true);
         setError('');
         
-        const response = await apiService.getTasks();
+        // Add cleanerId to the request to filter tasks assigned to this cleaner
+        const response = await apiService.getTasks({
+          assignedTo: authState.user._id
+        });
         
         if (!isMounted) return;
         
@@ -319,7 +324,14 @@ export default function TasksPage() {
                     {/* Action Buttons */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        {stats.completed === stats.total ? (
+                        {stats.total === 0 ? (
+                          <button 
+                            className="flex items-center space-x-2 bg-gray-300 text-gray-500 px-6 py-3 rounded-2xl shadow-lg cursor-not-allowed"
+                            disabled
+                          >
+                            <span className="font-semibold">No Assigned</span>
+                          </button>
+                        ) : stats.completed === stats.total ? (
                           <button className="flex items-center space-x-2 bg-gray-400 text-white px-6 py-3 rounded-2xl shadow-lg cursor-not-allowed">
                             <CheckCircle className="w-4 h-4" />
                             <span className="font-semibold">Completed</span>

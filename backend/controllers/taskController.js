@@ -30,11 +30,12 @@ exports.createTask = async (req, res) => {
 // @access  Private/Admin
 exports.getTasks = async (req, res) => {
   try {
-    const { propertyId, isActive } = req.query;
+    const { propertyId, isActive, assignedTo } = req.query;
     const filter = {};
     
     if (propertyId) filter.propertyId = propertyId;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
+    if (assignedTo) filter.assignedTo = assignedTo;
     
     const tasks = await Task.find(filter)
       .populate('assignedTo', 'name email')
