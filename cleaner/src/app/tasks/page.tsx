@@ -377,7 +377,7 @@ export default function TasksPage() {
               <List className="w-6 h-6" />
               <span className="text-xs font-medium">Tasks</span>
             </button>
-            <button 
+            {/* <button 
               onClick={() => handleTabChange('chat')}
               className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 ${
                 activeTab === 'chat' 
@@ -387,7 +387,7 @@ export default function TasksPage() {
             >
               <MessageCircle className="w-6 h-6" />
               <span className="text-xs font-medium">Chat</span>
-            </button>
+            </button> */}
             <button 
               onClick={() => handleTabChange('profile')}
               className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 ${
