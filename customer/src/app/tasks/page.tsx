@@ -207,7 +207,6 @@ export default function TasksPage() {
     isActive: 'true',
   });
   
-  const [cleaners, setCleaners] = useState<Array<{_id: string, name: string, role: string}>>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
   const [customers, setCustomers] = useState<Record<string, {name: string, email: string}>>({});
@@ -216,7 +215,7 @@ export default function TasksPage() {
     requirements: [],
     specialRequirement: '',
     scheduledTime: new Date(),
-    assignedTo: '',
+    assignedTo: '', // Empty by default - admin will assign cleaner
     isActive: true,
     propertyInfo: undefined
   });
@@ -277,9 +276,7 @@ export default function TasksPage() {
         });
         setUserNames(namesMap);
   
-        // Cleaners
-        const cleanersList = usersData.filter((u: User) => u.role === 'cleaner');
-        setCleaners(cleanersList);
+
   
         setIsLoading(false);
       } catch (err) {
@@ -357,7 +354,7 @@ export default function TasksPage() {
           requirements: taskData.requirements,
           specialRequirement: taskData.specialRequirement,
           scheduledTime: taskData.scheduledTime,
-          assignedTo: taskData.assignedTo,
+          // assignedTo is not included - admin will handle assignment
           isActive: taskData.isActive
         });
         toast({
@@ -394,7 +391,7 @@ export default function TasksPage() {
       requirements: [],
       specialRequirement: '',
       scheduledTime: new Date(),
-      assignedTo: '',
+      assignedTo: '', // Empty by default - admin will assign cleaner
       isActive: true
     });
     setIsEditing(false);
@@ -413,7 +410,7 @@ export default function TasksPage() {
       requirements: task.requirements || [],
       specialRequirement: task.specialRequirement || '',
       scheduledTime: task.scheduledTime ? new Date(task.scheduledTime) : new Date(),
-      assignedTo: typeof task.assignedTo === 'string' ? task.assignedTo : task.assignedTo?._id || '',
+      assignedTo: '', // Keep empty for customers - admin handles assignment
       isActive: task.isActive,
     });
     setCurrentTaskId(task._id);
@@ -737,21 +734,10 @@ export default function TasksPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="assignedTo" className="text-gray-700 dark:text-gray-300">Assign To</Label>
-                  <Select
-                    value={newTask.assignedTo || ''}
-                    onValueChange={(value) => setNewTask({ ...newTask, assignedTo: value })}
-                    className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                  >
-                    <SelectItem value="">Select a cleaner</SelectItem>
-                    {cleaners
-                      .filter(cleaner => cleaner.role === 'cleaner')
-                      .map(cleaner => (
-                        <SelectItem key={cleaner._id} value={cleaner._id}>
-                          {cleaner.name}
-                        </SelectItem>
-                      ))}
-                  </Select>
+                  <Label htmlFor="assignedTo" className="text-gray-700 dark:text-gray-300">Cleaner Assignment</Label>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-3 rounded-md border border-gray-200 dark:border-gray-600">
+                    Cleaner will be assigned by admin after task creation
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="specialRequirement" className="text-gray-700 dark:text-gray-300">Special Requirements</Label>
