@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { User, userAPI } from '@/services/api';
 import { toast } from 'sonner';
 import DashboardLayout from '@/components/DashboardLayout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { 
     Plus, 
     Edit, 
@@ -147,7 +148,8 @@ export default function UsersPage() {
   };
 
   return (
-    <DashboardLayout>
+    <ProtectedRoute>
+      <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -400,5 +402,6 @@ export default function UsersPage() {
       </div>
       </div>
     </DashboardLayout>
+  </ProtectedRoute>
   );
 }

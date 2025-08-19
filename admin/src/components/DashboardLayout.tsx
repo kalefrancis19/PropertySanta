@@ -19,6 +19,7 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -27,6 +28,7 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { logout, user } = useAuth();
   const [activeSection, setActiveSection] = useState(() => {
     if (pathname === '/') return 'overview';
     if (pathname === '/properties') return 'properties';
@@ -83,7 +85,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
                 <User className="h-5 w-5 text-primary-600 dark:text-primary-400" />
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Admin</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {user?.name || 'Admin'}
+              </span>
             </div>
           </div>
         </div>
@@ -116,7 +120,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             
             <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full">
+              <button 
+                onClick={logout}
+                className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full"
+              >
                 <LogOut className="h-5 w-5" />
                 <span>Sign Out</span>
               </button>

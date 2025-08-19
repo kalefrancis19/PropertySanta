@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Eye, 
   EyeOff, 
@@ -8,23 +9,75 @@ import {
   Shield, 
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { useAuth } from '@/contexts/AuthContext';
 
-export default function HomePage() {
+export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const { theme, toggleTheme } = useTheme();
+  const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  // Set client-side flag
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    // Only redirect on client side and if we're not loading
+    if (isClient && isAuthenticated && !authLoading) {
+      const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
+      router.push(returnUrl);
+    }
+  }, [isAuthenticated, authLoading, router, isClient]);
+
+  // Show loading state while checking auth
+  if (authLoading || !isClient) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      </div>
+    );
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    // Simulate login process
-    setTimeout(() => {
+    
+    // Basic validation
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
+    
+    try {
+      setError('');
+      setIsLoading(true);
+      
+      // Get the return URL from the query parameters or default to '/'
+      const returnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
+      
+      // Call the login function
+      await login(email, password);
+      
+      // The login function will handle the redirect
+      // We don't need to do it here as the useEffect will handle it
+      
+    } catch (err) {
+      console.error('Login error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setError(errorMessage);
       setIsLoading(false);
-      window.location.href = '/';
-    }, 1000);
+    }
   };
 
   return (
@@ -85,7 +138,14 @@ export default function HomePage() {
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
+                <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                  <span className="text-sm text-red-700 dark:text-red-400">{error}</span>
+                </div>
+              )}
+              
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Email Address
@@ -95,8 +155,11 @@ export default function HomePage() {
                   name="email"
                   type="email"
                   required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
                   placeholder="Enter your email"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -110,8 +173,11 @@ export default function HomePage() {
                     name="password"
                     type={showPassword ? 'text' : 'password'}
                     required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors pr-12"
                     placeholder="Enter your password"
+                    disabled={isLoading}
                   />
                   <button
                     type="button"

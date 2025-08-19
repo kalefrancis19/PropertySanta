@@ -15,6 +15,7 @@ type CreateTaskRequest = BaseCreateTaskRequest & {
 import { format } from 'date-fns';
 import { Plus, Search, Calendar, User, Trash2, Edit, Building } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 // Simple toast notification hook
 const useToast = () => {
@@ -484,7 +485,8 @@ export default function TasksPage() {
   });
 
   return (
-    <DashboardLayout>
+    <ProtectedRoute>
+      <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -756,7 +758,8 @@ export default function TasksPage() {
           </Card>
         </div>
       )}
-    </div>
-  </DashboardLayout>
+      </div>
+    </DashboardLayout>
+  </ProtectedRoute>
   );
 }

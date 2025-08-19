@@ -65,6 +65,7 @@ export interface Property {
   customer?: string;
   roomTasks: Array<{
     roomType: string;
+    isCompleted?: boolean;
     tasks: Array<{
       description: string;
       isCompleted: boolean;
@@ -87,6 +88,7 @@ export interface CreatePropertyRequest {
   customer?: string;  
   roomTasks: Array<{
     roomType: string;
+    isCompleted?: boolean;
     tasks: Array<{
       description: string;
       isCompleted?: boolean;
@@ -106,6 +108,7 @@ export interface UpdatePropertyRequest {
   isActive?: boolean;
   roomTasks?: Array<{
     roomType: string;
+    isCompleted?: boolean;
     tasks: Array<{
       description: string;
       isCompleted?: boolean;
@@ -451,5 +454,13 @@ export const userAPI = {
     }
   },
 };
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  user?: T;
+  token?: string;
+}
 
 export default api;

@@ -77,7 +77,10 @@ export default function DashboardPage() {
     const loadTasks = async () => {
       try {
         console.log('Loading tasks...');
-        const response = await apiService.getTasks();
+        // Filter tasks by the current logged-in cleaner
+        const response = await apiService.getTasks({
+          assignedTo: authState.user?._id
+        });
         console.log('Tasks response:', response);
         if (response.success) {
           const allTasks = response.data || [];
@@ -332,124 +335,71 @@ export default function DashboardPage() {
           <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-200 transform hover:scale-105">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">Properties</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{Object.keys(groupedTasks).length}</p>
-                <p className="text-green-500 text-xs font-medium">Active properties</p>
+                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">Total Tasks</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">{tasks.length}</p>
+                <p className="text-blue-500 text-xs font-medium">Assigned to you</p>
               </div>
               <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Building className="w-7 h-7 text-white" />
+                <List className="w-7 h-7 text-white" />
               </div>
             </div>
           </div>
           <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-200 transform hover:scale-105">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">Total Tasks</p>
+                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">Pending</p>
                 <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {Object.values(groupedTasks).reduce((total, group) => 
-                    total + (group.tasks.flatMap(t => t.roomTasks || []).length), 0)}
+                  {tasks.filter(task => {
+                    // Task is pending if no requirements are completed
+                    const completedRequirements = task.requirements?.filter(req => req.isCompleted)?.length || 0;
+                    return completedRequirements === 0;
+                  }).length}
                 </p>
-                <p className="text-blue-500 text-xs font-medium">Rooms across all properties</p>
+                <p className="text-gray-500 text-xs font-medium">Not started</p>
+              </div>
+              <div className="w-14 h-14 bg-gradient-to-br from-gray-400 to-gray-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <Clock className="w-7 h-7 text-white" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-200 transform hover:scale-105">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">In Progress</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {tasks.filter(task => {
+                    // Task is in progress if some but not all requirements are completed
+                    const totalRequirements = task.requirements?.length || 0;
+                    const completedRequirements = task.requirements?.filter(req => req.isCompleted)?.length || 0;
+                    return completedRequirements > 0 && completedRequirements < totalRequirements;
+                  }).length}
+                </p>
+                <p className="text-yellow-500 text-xs font-medium">Partially done</p>
+              </div>
+              <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <Play className="w-7 h-7 text-white" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-200 transform hover:scale-105">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium">Completed</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {tasks.filter(task => {
+                    // Check if all requirements are completed
+                    const totalRequirements = task.requirements?.length || 0;
+                    const completedRequirements = task.requirements?.filter(req => req.isCompleted)?.length || 0;
+                    return totalRequirements > 0 && completedRequirements === totalRequirements;
+                  }).length}
+                </p>
+                <p className="text-green-500 text-xs font-medium">Fully completed</p>
               </div>
               <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <List className="w-7 h-7 text-white" />
+                <CheckCircle className="w-7 h-7 text-white" />
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Current Properties */}
-      <div className="px-6 mb-6">
-        <div className="bg-gradient-to-r from-blue-500/5 to-purple-500/5 dark:from-blue-500/10 dark:to-purple-500/10 backdrop-blur-xl rounded-3xl p-6 shadow-lg border border-blue-200/30 dark:border-blue-500/20">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-gray-900 dark:text-white text-lg">Current Properties</h3>
-            {currentProperties.length > 0 && (
-              <span className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold rounded-full shadow-lg">
-                {currentProperties.length} In Progress
-              </span>
-            )}
-          </div>
-          {currentProperties.length > 0 ? (
-            <div className="space-y-4">
-              {currentProperties.map((propertyEntry, index) => {
-                const property = propertyEntry.property;
-                const tasks = propertyEntry.tasks;
-                const propertyId = property.id;
-                const isExpanded = expandedCurrentProperties.has(propertyId);
-                
-                // Calculate progress based on room completion
-                const allRooms = tasks.flatMap(t => t.roomTasks || []);
-                const completedRooms = allRooms.filter(rt => rt.isCompleted === true).length;
-                const totalRooms = allRooms.length;
-                const progressPercentage = totalRooms > 0 ? Math.round((completedRooms / totalRooms) * 100) : 0;
-                
-                return (
-                  <div key={propertyId} className="bg-white/80 dark:bg-gray-800/80 rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/50 shadow-md hover:shadow-lg transition-all duration-200">
-                    <div className="cursor-pointer" onClick={() => {
-                      const newExpanded = new Set(expandedCurrentProperties);
-                      if (isExpanded) {
-                        newExpanded.delete(propertyId);
-                      } else {
-                        newExpanded.add(propertyId);
-                      }
-                      setExpandedCurrentProperties(newExpanded);
-                    }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                          {property.name || 'Unknown Property'}
-                        </h4>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                            {progressPercentage}% Complete
-                          </span>
-                          <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-300"
-                              style={{ width: `${progressPercentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-gray-600 dark:text-gray-300 text-sm mb-3 flex items-center">
-                        <MapPin className="w-4 h-4 mr-2" />
-                        {property.address || 'Address not available'}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <span className={`flex items-center space-x-1 ${getPropertyTypeColor(property.type)}`}>
-                            {getPropertyTypeIcon(property.type)}
-                            <span className="text-xs font-medium capitalize">{property.type}</span>
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {completedRooms}/{totalRooms} {totalRooms === 1 ? 'room' : 'rooms'} done
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <button className="flex items-center space-x-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-2 rounded-xl text-xs font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105">
-                            <Play className="w-3 h-3" />
-                            <span>Continue</span>
-                          </button>
-                          <button className="flex items-center space-x-1 bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-xl text-xs shadow-sm hover:shadow-md transition-all duration-200">
-                            <Pause className="w-3 h-3" />
-                            <span>Pause</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-gray-400 dark:text-gray-600" />
-              </div>
-              <p className="text-gray-600 dark:text-gray-300 text-sm mb-2">No properties currently in progress</p>
-              <p className="text-gray-500 dark:text-gray-400 text-xs">Properties with at least one completed task will appear here</p>
-            </div>
-          )}
         </div>
       </div>
 

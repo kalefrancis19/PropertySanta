@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import DashboardLayout from '@/components/DashboardLayout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { taskAPI, propertyAPI, userAPI, Task, TaskRequirement, Photo, Issue, AIFeedback, Property } from '@/services/api';
 import { format } from 'date-fns';
 
@@ -302,7 +303,8 @@ export default function ReportsPage() {
   );
 
   return (
-    <DashboardLayout>
+    <ProtectedRoute>
+      <DashboardLayout>
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Cleaning Reports</h1>
         <p className="text-gray-600 dark:text-gray-400">Analysis of cleaning progress and schedules</p>
@@ -588,5 +590,6 @@ export default function ReportsPage() {
         </div>
       </div>
     </DashboardLayout>
+  </ProtectedRoute>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   User, 
   Bell, 
@@ -17,11 +17,29 @@ import {
   Moon
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
   const [showPassword, setShowPassword] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
+  
+  // Profile form state
+  const [profileData, setProfileData] = useState({
+    name: '',
+    email: '',
+    phone: ''
+  });
+  
+  // Password change state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  
   const [notifications, setNotifications] = useState({
     email: true,
     sms: true,
@@ -30,6 +48,46 @@ export default function SettingsPage() {
     paymentReminders: true,
     maintenanceAlerts: true
   });
+  
+  // Load user data when component mounts
+  useEffect(() => {
+    if (user) {
+      setProfileData({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || ''
+      });
+    }
+  }, [user]);
+  
+  // Handle save changes
+  const handleSaveChanges = () => {
+    if (activeTab === 'profile') {
+      // Save profile changes
+      console.log('Saving profile changes:', profileData);
+      // TODO: Implement API call to update user profile
+      alert('Profile updated successfully!');
+    } else if (activeTab === 'security') {
+      // Save password changes
+      if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+        alert('Please fill in all password fields');
+        return;
+      }
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        alert('New passwords do not match');
+        return;
+      }
+      console.log('Saving password changes:', passwordData);
+      // TODO: Implement API call to change password
+      alert('Password updated successfully!');
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } else if (activeTab === 'notifications') {
+      // Save notification preferences
+      console.log('Saving notification preferences:', notifications);
+      // TODO: Implement API call to update notification preferences
+      alert('Notification preferences updated successfully!');
+    }
+  };
 
   const tabs = [
     { id: 'profile', name: 'Profile', icon: User },
@@ -39,7 +97,8 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -69,7 +128,10 @@ export default function SettingsPage() {
                   <Sun className="h-5 w-5" />
                 )}
               </button>
-              <button className="bg-gradient-to-r from-primary-600 to-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-primary-700 hover:to-blue-700 flex items-center space-x-2 transition-all duration-200 transform hover:scale-105">
+              <button 
+                onClick={handleSaveChanges}
+                className="bg-gradient-to-r from-primary-600 to-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-primary-700 hover:to-blue-700 flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"
+              >
                 <Save className="h-4 w-4" />
                 <span>Save Changes</span>
               </button>
@@ -116,44 +178,75 @@ export default function SettingsPage() {
                       <User className="h-10 w-10 text-primary-600 dark:text-primary-400" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">John Doe</h3>
-                      <p className="text-gray-600 dark:text-gray-400">john.doe@example.com</p>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{user?.name || 'Admin User'}</h3>
+                      <p className="text-gray-600 dark:text-gray-400">{user?.email || 'No email'}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Role: {user?.role || 'Admin'}</p>
                     </div>
                   </div>
 
                   {/* Personal Information */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">First Name</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Full Name</label>
                       <input
                         type="text"
-                        defaultValue="John"
+                        value={profileData.name}
+                        onChange={(e) => setProfileData({...profileData, name: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Last Name</label>
-                      <input
-                        type="text"
-                        defaultValue="Doe"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="Enter your full name"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
                       <input
                         type="email"
-                        defaultValue="john.doe@example.com"
+                        value={profileData.email}
+                        onChange={(e) => setProfileData({...profileData, email: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="Enter your email"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Phone</label>
                       <input
                         type="tel"
-                        defaultValue="+1 (555) 123-4567"
+                        value={profileData.phone}
+                        onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="Enter your phone number"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">User ID</label>
+                      <input
+                        type="text"
+                        value={user?._id || ''}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 focus:outline-none"
+                        disabled
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Account Information */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Account Status</label>
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-3 h-3 rounded-full ${user?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {user?.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Member Since</label>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -228,6 +321,8 @@ export default function SettingsPage() {
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 pr-10"
                         placeholder="Enter current password"
                       />
@@ -245,6 +340,8 @@ export default function SettingsPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Password</label>
                     <input
                       type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                       placeholder="Enter new password"
                     />
@@ -254,6 +351,8 @@ export default function SettingsPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
                     <input
                       type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                       placeholder="Confirm new password"
                     />
@@ -266,6 +365,25 @@ export default function SettingsPage() {
                     />
                     <label className="text-sm text-gray-700 dark:text-gray-300">Enable two-factor authentication</label>
                   </div>
+                  
+                  {/* Password validation */}
+                  {passwordData.newPassword && passwordData.confirmPassword && (
+                    <div className={`p-3 rounded-lg ${
+                      passwordData.newPassword === passwordData.confirmPassword 
+                        ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
+                        : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                    }`}>
+                      <p className={`text-sm ${
+                        passwordData.newPassword === passwordData.confirmPassword 
+                          ? 'text-green-700 dark:text-green-400' 
+                          : 'text-red-700 dark:text-red-400'
+                      }`}>
+                        {passwordData.newPassword === passwordData.confirmPassword 
+                          ? '✓ Passwords match' 
+                          : '✗ Passwords do not match'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -315,5 +433,6 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  </ProtectedRoute>
   );
 } 

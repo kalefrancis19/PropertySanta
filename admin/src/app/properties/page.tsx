@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { propertyAPI, Property, CreatePropertyRequest, userAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 
 export default function PropertiesPage() {
@@ -123,19 +124,22 @@ export default function PropertiesPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600 dark:text-gray-400">Loading properties...</p>
+      <ProtectedRoute>
+        <DashboardLayout>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Loading properties...</p>
+            </div>
           </div>
-        </div>
-      </DashboardLayout>
+        </DashboardLayout>
+      </ProtectedRoute>
     );
   }
 
   return (
-    <DashboardLayout>
+    <ProtectedRoute>
+      <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -268,7 +272,8 @@ export default function PropertiesPage() {
           onChange={setEditingManual}
         />
       )}
-    </DashboardLayout>
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }
 

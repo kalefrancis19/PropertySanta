@@ -6,6 +6,7 @@ import { propertyAPI, Property } from '@/services/api';
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
 
 interface Task {
@@ -206,32 +207,37 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
 
   if (loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-        </div>
-      </DashboardLayout>
+      <ProtectedRoute>
+        <DashboardLayout>
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          </div>
+        </DashboardLayout>
+      </ProtectedRoute>
     );
   }
 
   if (!property) {
     return (
-      <DashboardLayout>
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Property not found</h2>
-          <Link
-            href="/properties"
-            className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-          >
-            Back to Properties
-          </Link>
-        </div>
-      </DashboardLayout>
+      <ProtectedRoute>
+        <DashboardLayout>
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Property not found</h2>
+            <Link
+              href="/properties"
+              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+            >
+              Back to Properties
+            </Link>
+          </div>
+        </DashboardLayout>
+      </ProtectedRoute>
     );
   }
 
   return (
-    <DashboardLayout>
+    <ProtectedRoute>
+      <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -487,5 +493,6 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
         </form>
       </div>
     </DashboardLayout>
+  </ProtectedRoute>
   );
 }
