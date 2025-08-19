@@ -41,8 +41,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     const loadUserFromToken = async () => {
       try {
+        console.log('Loading user from token...');
         const token = localStorage.getItem('token');
         if (!token) {
+          console.log('No token found in localStorage');
           if (isMounted) {
             setUser(null);
             setLoading(false);
@@ -50,6 +52,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
+        console.log('Token found, setting axios headers...');
         // Set the token in axios headers
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
@@ -58,6 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (storedUser) {
           try {
             const user = JSON.parse(storedUser);
+            console.log('Using stored user data:', user);
             if (isMounted) {
               setUser(user);
               setLoading(false);
@@ -69,16 +73,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
+        console.log('Fetching user from server...');
         // If no stored user, fetch from server
         const response = await api.get<{ user: User }>('/auth/me');
         
         if (response.data?.user) {
+          console.log('User data received from server:', response.data.user);
           // Store user in localStorage for future use
           localStorage.setItem('user', JSON.stringify(response.data.user));
           if (isMounted) {
             setUser(response.data.user);
           }
         } else {
+          console.log('No user data in server response');
           // If no user data in response, clear the invalid token
           localStorage.removeItem('token');
           delete api.defaults.headers.common['Authorization'];
@@ -93,7 +100,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         delete api.defaults.headers.common['Authorization'];
         if (isMounted) setUser(null);
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          console.log('Setting loading to false');
+          setLoading(false);
+        }
       }
     };
 
@@ -101,6 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (typeof window !== 'undefined') {
       loadUserFromToken();
     } else {
+      console.log('Server side, setting loading to false');
       setLoading(false);
     }
 
