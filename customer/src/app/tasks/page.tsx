@@ -277,7 +277,7 @@ export default function TasksPage() {
         setIsLoading(false);
       } catch (err) {
         console.error(err);
-        toast({ title: 'Error', description: 'Failed to fetch data', variant: 'destructive' });
+        toast.error('Failed to fetch data');
         setIsLoading(false);
       }
     };
@@ -306,11 +306,7 @@ export default function TasksPage() {
         }
       } catch (error) {
         console.error('Error fetching tasks:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load tasks. Please try again.',
-          variant: 'destructive',
-        });
+        toast.error('Failed to load tasks. Please try again.');
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -353,16 +349,10 @@ export default function TasksPage() {
           // assignedTo is not included - admin will handle assignment
           isActive: taskData.isActive
         });
-        toast({
-          title: 'Success',
-          description: 'Task updated successfully',
-        });
+        toast.success('Task updated successfully');
       } else {
         await taskAPI.create(taskData);
-        toast({
-          title: 'Success',
-          description: 'Task created successfully',
-        });
+        toast.success('Task created successfully');
       }
       
       setIsTaskDialogOpen(false);
@@ -372,11 +362,7 @@ export default function TasksPage() {
       resetForm();
     } catch (error) {
       console.error('Error saving task:', error);
-      toast({
-        title: 'Error',
-        description: `Failed to ${isEditing ? 'update' : 'create'} task. Please try again.`,
-        variant: 'destructive',
-      });
+      toast.error(`Failed to ${isEditing ? 'update' : 'create'} task. Please try again.`);
     }
   };
 
@@ -451,20 +437,13 @@ export default function TasksPage() {
   const toggleTaskStatus = async (taskId: string, isActive: boolean) => {
     try {
       await taskAPI.update(taskId, { isActive: !isActive });
-      toast({
-        title: 'Success',
-        description: `Task ${isActive ? 'deactivated' : 'activated'} successfully`,
-      });
+      toast.success(`Task ${isActive ? 'deactivated' : 'activated'} successfully`);
       // Refresh tasks
       const data = await taskAPI.getAll();
       setTasks(data);
     } catch (error) {
       console.error('Error updating task status:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update task status. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Failed to update task status. Please try again.');
     }
   };
 
@@ -520,20 +499,13 @@ export default function TasksPage() {
     
     try {
       await taskAPI.delete(taskId);
-      toast({
-        title: 'Success',
-        description: 'Task deleted successfully',
-      });
+      toast.success('Task deleted successfully');
       // Refresh tasks
       const data = await taskAPI.getAll();
       setTasks(data);
     } catch (error) {
       console.error('Error deleting task:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete task. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Failed to delete task. Please try again.');
     }
   };
 

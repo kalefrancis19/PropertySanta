@@ -169,64 +169,138 @@ export const mockTasks: Task[] = [
 
 export const mockProperties: Property[] = [
   {
-    id: '1',
+    _id: '1',
+    propertyId: 'prop_001',
     name: 'Main Street Apartment',
     address: '123 Main St, Apt 4B, New York, NY 10001',
     type: 'apartment',
     rooms: 2,
     bathrooms: 1,
+    squareFootage: 800,
+    estimatedTime: '2 hours',
+    manual: {
+      title: 'Main Street Apartment Manual',
+      content: 'Standard cleaning procedures for this apartment.',
+      lastUpdated: '2024-01-15T09:00:00Z'
+    },
+    roomTasks: [],
     instructions: 'Use eco-friendly cleaning products. No pets in unit.',
-    specialRequirements: ['Eco-friendly products', 'No pets']
+    specialRequirements: ['Eco-friendly products', 'No pets'],
+    isActive: true,
+    createdAt: '2024-01-15T09:00:00Z',
+    updatedAt: '2024-01-15T09:00:00Z'
   },
   {
-    id: '2',
+    _id: '2',
+    propertyId: 'prop_002',
     name: 'Oak Avenue Unit',
     address: '456 Oak Ave, Unit 7, Brooklyn, NY 11201',
     type: 'apartment',
     rooms: 1,
     bathrooms: 1,
+    squareFootage: 600,
+    estimatedTime: '1.5 hours',
+    manual: {
+      title: 'Oak Avenue Unit Manual',
+      content: 'Cleaning procedures for allergy-sensitive tenant.',
+      lastUpdated: '2024-01-15T09:00:00Z'
+    },
+    roomTasks: [],
     instructions: 'Tenant has allergies. Use hypoallergenic products.',
-    specialRequirements: ['Hypoallergenic products', 'No strong fragrances']
+    specialRequirements: ['Hypoallergenic products', 'No strong fragrances'],
+    isActive: true,
+    createdAt: '2024-01-15T09:00:00Z',
+    updatedAt: '2024-01-15T09:00:00Z'
   },
   {
-    id: '3',
+    _id: '3',
+    propertyId: 'prop_003',
     name: 'Pine Street House',
     address: '789 Pine St, House 12, Queens, NY 11375',
     type: 'house',
     rooms: 4,
     bathrooms: 2,
+    squareFootage: 2000,
+    estimatedTime: '4 hours',
+    manual: {
+      title: 'Pine Street House Manual',
+      content: 'Family home cleaning procedures.',
+      lastUpdated: '2024-01-15T09:00:00Z'
+    },
+    roomTasks: [],
     instructions: 'Large family home. Focus on common areas.',
-    specialRequirements: ['Family-friendly', 'Pet-friendly']
+    specialRequirements: ['Family-friendly', 'Pet-friendly'],
+    isActive: true,
+    createdAt: '2024-01-15T09:00:00Z',
+    updatedAt: '2024-01-15T09:00:00Z'
   },
   {
-    id: '4',
+    _id: '4',
+    propertyId: 'prop_004',
     name: 'Elm Road Apartment',
     address: '321 Elm Rd, Apt 2A, Bronx, NY 10451',
     type: 'apartment',
     rooms: 3,
     bathrooms: 1,
+    squareFootage: 1000,
+    estimatedTime: '2.5 hours',
+    manual: {
+      title: 'Elm Road Apartment Manual',
+      content: 'Elderly care cleaning procedures.',
+      lastUpdated: '2024-01-15T09:00:00Z'
+    },
+    roomTasks: [],
     instructions: 'Elderly tenant. Be extra careful with fragile items.',
-    specialRequirements: ['Elderly care', 'Fragile items']
+    specialRequirements: ['Elderly care', 'Fragile items'],
+    isActive: true,
+    createdAt: '2024-01-15T09:00:00Z',
+    updatedAt: '2024-01-15T09:00:00Z'
   },
   {
-    id: '5',
+    _id: '5',
+    propertyId: 'prop_005',
     name: 'Business Boulevard Office',
     address: '555 Business Blvd, Suite 100, Manhattan, NY 10005',
     type: 'office',
     rooms: 8,
     bathrooms: 2,
+    squareFootage: 3000,
+    estimatedTime: '6 hours',
+    manual: {
+      title: 'Business Boulevard Office Manual',
+      content: 'Professional office cleaning procedures.',
+      lastUpdated: '2024-01-15T09:00:00Z'
+    },
+    roomTasks: [],
     instructions: 'Professional office space. Maintain confidentiality.',
-    specialRequirements: ['Professional service', 'Confidentiality']
+    specialRequirements: ['Professional service', 'Confidentiality'],
+    isActive: true,
+    createdAt: '2024-01-15T09:00:00Z',
+    updatedAt: '2024-01-15T09:00:00Z'
   },
 ];
 
 export const mockUser: User = {
-  id: '1',
+  _id: '1',
   name: 'Sarah Johnson',
   email: 'sarah.johnson@propertysanta.com',
   role: 'cleaner',
   avatar: 'https://example.com/avatar.jpg',
   phone: '+1 (555) 123-4567',
+  rating: 4.8,
+  specialties: ['Deep Cleaning', 'Kitchen Sanitization', 'Bathroom Cleaning', 'Office Cleaning'],
+  availability: {
+    monday: true,
+    tuesday: true,
+    wednesday: true,
+    thursday: true,
+    friday: true,
+    saturday: false,
+    sunday: false,
+  },
+  isActive: true,
+  createdAt: '2024-01-15T09:00:00Z',
+  updatedAt: '2024-01-15T09:00:00Z'
 };
 
 export const mockCleaner: Cleaner = {

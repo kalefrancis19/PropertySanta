@@ -68,9 +68,15 @@ export default function PropertiesPage() {
       toast.success('Property added successfully');
       setShowAddModal(false);
       fetchProperties();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding property:', error);
-      toast.error('Failed to add property');
+      
+      // Handle specific error for existing property
+      if (error.response?.status === 400 && error.response?.data?.message === 'Property ID already exists') {
+        toast.error('A property with this ID already exists. Please use a different property ID.');
+      } else {
+        toast.error('Failed to add property');
+      }
     }
   };
 

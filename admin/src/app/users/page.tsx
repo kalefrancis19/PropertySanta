@@ -101,9 +101,15 @@ export default function UsersPage() {
       });
       setIsModalOpen(false);
       await fetchUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving user:', error);
-      toast.error(`Failed to ${formData._id ? 'update' : 'create'} user`);
+      
+      // Handle specific error for existing user
+      if (error.response?.status === 400 && error.response?.data?.message === 'User already exists') {
+        toast.error('A user with this email already exists. Please use a different email address.');
+      } else {
+        toast.error(`Failed to ${formData._id ? 'update' : 'create'} user`);
+      }
     }
   };
 
