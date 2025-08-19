@@ -25,33 +25,48 @@ const getManualRequirementsForRoom = (property, roomType) => {
 // Chat with AI
 const chatWithAI = async (req, res) => {
   try {
-    const { message, propertyId, roomType, completedTasks, manualTips } = req.body;
+    const { message, propertyId, roomType, completedTasks, manualTips, taskId } = req.body;
     if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
+
+    // Get the task ID - either from request body or find it from propertyId
+    let currentTaskId = taskId;
+    if (!currentTaskId && propertyId) {
+      const task = await Task.findOne({ propertyId: propertyId });
+      if (task) {
+        currentTaskId = task._id.toString();
+      }
+    }
 
     geminiService.updateContext({
       currentRoom: roomType,
       completedTasks: completedTasks || [],
       manualTips: manualTips || []
-    });
+    }, currentTaskId);
 
-    if (propertyId) {
-      const task = await Task.findOne({ propertyId: propertyId });
+    if (currentTaskId) {
+      const task = await Task.findById(currentTaskId);
       console.log(task,'------task-----------------')
-      if (task) geminiService.updateContext({ currentProperty: task, workflowState: geminiService.context.workflowState || 'initial' });
+      if (task) {
+        geminiService.updateContext({ 
+          currentProperty: task, 
+          workflowState: geminiService.getContext(currentTaskId).workflowState || 'initial' 
+        }, currentTaskId);
+      }
     }
 
-    const aiResponse = await geminiService.generateChatResponse(message);
+    const aiResponse = await geminiService.generateChatResponse(message, currentTaskId);
+    const context = geminiService.getContext(currentTaskId);
 
     res.json({
       success: true,
       data: {
         message: aiResponse,
         timestamp: new Date().toISOString(),
-        workflowState: geminiService.context.workflowState,
-        beforePhotosLogged: geminiService.context.beforePhotosLogged,
-        afterPhotosLogged: geminiService.context.afterPhotosLogged,
-        currentRoom: geminiService.context.currentRoom,
-        chatHistoryLength: geminiService.context.chatHistory.length
+        workflowState: context.workflowState,
+        beforePhotosLogged: context.beforePhotosLogged,
+        afterPhotosLogged: context.afterPhotosLogged,
+        currentRoom: context.currentRoom,
+        chatHistoryLength: context.chatHistory.length
       }
     });
   } catch (error) {
@@ -63,18 +78,28 @@ const chatWithAI = async (req, res) => {
 // Handle photo upload
 const handlePhotoUpload = async (req, res) => {
   try {
-    const { photoBase64, photoType, roomType, propertyId, userMessage } = req.body;
+    const { photoBase64, photoType, roomType, propertyId, userMessage, taskId } = req.body;
     if (!photoBase64) return res.status(400).json({ success: false, message: 'Photo data is required' });
     if (!photoType || !roomType) return res.status(400).json({ success: false, message: 'Photo type and room type are required' });
 
-    if (propertyId) {
+    // Get the task ID - either from request body or find it from propertyId
+    let currentTaskId = taskId;
+    if (!currentTaskId && propertyId) {
       const task = await Task.findOne({ propertyId: propertyId });
-      if (task) geminiService.updateContext({ currentProperty: task });
+      if (task) {
+        currentTaskId = task._id.toString();
+      }
     }
 
-    const result = await geminiService.handlePhotoUpload(photoBase64, photoType, roomType, userMessage);
+    if (currentTaskId) {
+      const task = await Task.findById(currentTaskId);
+      if (task) geminiService.updateContext({ currentProperty: task }, currentTaskId);
+    }
 
-    res.json({ success: true, data: { ...result, workflowState: geminiService.context.workflowState } });
+    const result = await geminiService.handlePhotoUpload(photoBase64, photoType, roomType, userMessage, currentTaskId);
+    const context = geminiService.getContext(currentTaskId);
+
+    res.json({ success: true, data: { ...result, workflowState: context.workflowState } });
   } catch (error) {
     console.error('Photo upload error:', error);
     res.status(500).json({ success: false, message: 'Failed to process photo upload' });
@@ -101,19 +126,32 @@ const scoreBeforeAfterPhotos = async (req, res) => {
 // Analyze before/after photos
 const analyzeBeforeAfterPhotos = async (req, res) => {
   try {
-    const { beforePhotoBase64, afterPhotoBase64, roomType, propertyId } = req.body;
+    const { beforePhotoBase64, afterPhotoBase64, roomType, propertyId, taskId } = req.body;
     if (!beforePhotoBase64 || !afterPhotoBase64) return res.status(400).json({ success: false, message: 'Both before and after photos are required' });
 
     let manualRequirements = '';
-    if (propertyId) {
-      const property = await Property.findById(propertyId);
-      if (property) {
-        geminiService.updateContext({ currentProperty: property });
-        manualRequirements = getManualRequirementsForRoom(property, roomType);
+    let currentTaskId = taskId;
+    
+    if (!currentTaskId && propertyId) {
+      const task = await Task.findOne({ propertyId: propertyId });
+      if (task) {
+        currentTaskId = task._id.toString();
+      }
+    }
+    
+    if (currentTaskId) {
+      const task = await Task.findById(currentTaskId);
+      if (task) {
+        geminiService.updateContext({ currentProperty: task }, currentTaskId);
+        // Get requirements from task, not property
+        const taskRequirements = task.requirements.find(rt => rt.roomType.toLowerCase() === roomType.toLowerCase());
+        if (taskRequirements) {
+          manualRequirements = taskRequirements.tasks.map(task => `- ${task.description}`).join('\n');
+        }
       }
     }
 
-    const analysis = await geminiService.analyzeBeforeAfterComparison(beforePhotoBase64, afterPhotoBase64, roomType, manualRequirements);
+    const analysis = await geminiService.analyzeBeforeAfterComparison(beforePhotoBase64, afterPhotoBase64, roomType, manualRequirements, currentTaskId);
     res.json({ success: true, data: analysis });
   } catch (error) {
     console.error('Before/After analysis error:', error);
@@ -124,15 +162,28 @@ const analyzeBeforeAfterPhotos = async (req, res) => {
 // Analyze single photo with manual requirements
 const analyzePhotoWithManual = async (req, res) => {
   try {
-    const { photoBase64, photoType, roomType, propertyId } = req.body;
+    const { photoBase64, photoType, roomType, propertyId, taskId } = req.body;
     if (!photoBase64) return res.status(400).json({ success: false, message: 'Photo data is required' });
 
     let manualRequirements = '';
-    if (propertyId) {
-      const property = await Property.findById(propertyId);
-      if (property) {
-        geminiService.updateContext({ currentProperty: property });
-        manualRequirements = getManualRequirementsForRoom(property, roomType);
+    let currentTaskId = taskId;
+    
+    if (!currentTaskId && propertyId) {
+      const task = await Task.findOne({ propertyId: propertyId });
+      if (task) {
+        currentTaskId = task._id.toString();
+      }
+    }
+    
+    if (currentTaskId) {
+      const task = await Task.findById(currentTaskId);
+      if (task) {
+        geminiService.updateContext({ currentProperty: task }, currentTaskId);
+        // Get requirements from task, not property
+        const taskRequirements = task.requirements.find(rt => rt.roomType.toLowerCase() === roomType.toLowerCase());
+        if (taskRequirements) {
+          manualRequirements = taskRequirements.tasks.map(task => `- ${task.description}`).join('\n');
+        }
       }
     }
 
@@ -163,7 +214,12 @@ const generateWorkflowGuidance = async (req, res) => {
 // Get workflow state
 const getWorkflowState = async (req, res) => {
   try {
-    const context = geminiService.context;
+    const { taskId } = req.query;
+    if (!taskId) {
+      return res.status(400).json({ success: false, message: 'Task ID is required' });
+    }
+    
+    const context = geminiService.getContext(taskId);
     res.json({
       success: true,
       data: {
@@ -183,18 +239,32 @@ const getWorkflowState = async (req, res) => {
 // Reset workflow
 const resetWorkflow = async (req, res) => {
   try {
-    const { propertyId } = req.body;
+    const { propertyId, taskId } = req.body;
+    
+    // Get the task ID - either from request body or find it from propertyId
+    let currentTaskId = taskId;
+    if (!currentTaskId && propertyId) {
+      const task = await Task.findOne({ propertyId: propertyId });
+      if (task) {
+        currentTaskId = task._id.toString();
+      }
+    }
+    
+    if (!currentTaskId) {
+      return res.status(400).json({ success: false, message: 'Task ID or Property ID is required' });
+    }
+    
     geminiService.updateContext({
       workflowState: 'initial',
       beforePhotosLogged: [],
       afterPhotosLogged: [],
       currentRoomIndex: 0,
       chatHistory: []
-    });
+    }, currentTaskId);
 
     if (propertyId) {
       const task = await Task.findOne({ propertyId: propertyId });
-      if (task) geminiService.updateContext({ currentProperty: task });
+      if (task) geminiService.updateContext({ currentProperty: task }, currentTaskId);
     }
 
     res.json({ success: true, message: 'Workflow reset successfully' });
@@ -221,7 +291,12 @@ const updateWorkflowProgress = async (req, res) => {
 // Update AI context
 const updateContext = async (req, res) => {
   try {
-    const { currentProperty, currentRoom, completedTasks, photos, manualTips, currentWorkflow } = req.body;
+    const { currentProperty, currentRoom, completedTasks, photos, manualTips, currentWorkflow, taskId } = req.body;
+    
+    if (!taskId) {
+      return res.status(400).json({ success: false, message: 'Task ID is required' });
+    }
+    
     geminiService.updateContext({
       currentProperty,
       currentRoom,
@@ -229,7 +304,7 @@ const updateContext = async (req, res) => {
       photos: photos || { before: [], after: [], during: [] },
       manualTips: manualTips || [],
       currentWorkflow: currentWorkflow || []
-    });
+    }, taskId);
     res.json({ success: true, message: 'AI context updated successfully' });
   } catch (error) {
     console.error('Update context error:', error);
@@ -240,12 +315,26 @@ const updateContext = async (req, res) => {
 // Reset AI context
 const resetAIContext = async (req, res) => {
   try {
-    geminiService.resetContext();
-    res.json({
-      success: true,
-      message: 'AI context reset successfully',
-      data: { workflowState: geminiService.context.workflowState, chatHistoryLength: geminiService.context.chatHistory.length }
-    });
+    const { taskId } = req.body;
+    
+    if (taskId) {
+      // Reset specific task context
+      geminiService.resetContext(taskId);
+      const context = geminiService.getContext(taskId);
+      res.json({
+        success: true,
+        message: 'AI context reset successfully for specific task',
+        data: { workflowState: context.workflowState, chatHistoryLength: context.chatHistory.length }
+      });
+    } else {
+      // Reset all contexts
+      geminiService.resetContext();
+      res.json({
+        success: true,
+        message: 'All AI contexts reset successfully',
+        data: { contextsCleared: true }
+      });
+    }
   } catch (error) {
     console.error('Reset context error:', error);
     res.status(500).json({ success: false, message: 'Failed to reset AI context' });

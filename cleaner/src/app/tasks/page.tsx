@@ -12,7 +12,9 @@ import {
   Building,
   Play,
   CheckCircle,
-  Users
+  Users,
+  Briefcase,
+  Store
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
@@ -187,7 +189,9 @@ export default function TasksPage() {
     switch (type) {
       case 'apartment': return <Building className="w-4 h-4" />;
       case 'house': return <Home className="w-4 h-4" />;
-      case 'office': return <Users className="w-4 h-4" />;
+      case 'office': return <Briefcase className="w-4 h-4" />;
+      case 'commercial': return <Store className="w-4 h-4" />;
+      case 'retail': return <Store className="w-4 h-4" />;
       default: return <Building className="w-4 h-4" />;
     }
   };
@@ -197,6 +201,8 @@ export default function TasksPage() {
       case 'apartment': return 'text-blue-500';
       case 'house': return 'text-green-500';
       case 'office': return 'text-purple-500';
+      case 'commercial': return 'text-orange-500';
+      case 'retail': return 'text-orange-500';
       default: return 'text-gray-500';
     }
   };
@@ -338,7 +344,7 @@ export default function TasksPage() {
                           </button>
                         ) : stats.completed === 0 ? (
                           <button 
-                            onClick={() => router.push(`/chat?propertyId=${task.propertyId}&propertyName=${encodeURIComponent(propertyDetails[task.propertyId]?.name || '')}`)}
+                            onClick={() => router.push(`/chat?propertyId=${task.propertyId}&taskId=${task._id}&propertyName=${encodeURIComponent(propertyDetails[task.propertyId]?.name || '')}`)}
                             className="flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
                           >
                             <Play className="w-4 h-4" />
@@ -346,7 +352,7 @@ export default function TasksPage() {
                           </button>
                         ) : (
                           <button 
-                            onClick={() => router.push(`/chat?propertyId=${task.propertyId}&propertyName=${encodeURIComponent(propertyDetails[task.propertyId]?.name || '')}`)}
+                            onClick={() => router.push(`/chat?propertyId=${task.propertyId}&taskId=${task._id}&propertyName=${encodeURIComponent(propertyDetails[task.propertyId]?.name || '')}`)}
                             className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
                           >
                             <Play className="w-4 h-4" />

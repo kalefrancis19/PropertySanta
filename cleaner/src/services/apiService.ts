@@ -6,6 +6,10 @@ interface ApiResponse<T = any> {
   data?: T;
 }
 
+interface PropertyResponse extends ApiResponse {
+  property: any;
+}
+
 // New interfaces for AI workflow
 interface BeforeAfterScoringData {
   overallScore: number;
@@ -184,8 +188,8 @@ class ApiService {
     return this.request(`/tasks${queryString}`);
   }
 
-  async getPropertyDetails(propertyId: string): Promise<ApiResponse> {
-    return this.request(`/properties/${propertyId}`);
+  async getPropertyDetails(propertyId: string): Promise<PropertyResponse> {
+    return this.request(`/properties/${propertyId}`) as Promise<PropertyResponse>;
   }
 
   async updateRoomTaskStatus(propertyId: string, roomType: string, taskIndex: number, isCompleted: boolean): Promise<ApiResponse> {
@@ -206,6 +210,7 @@ class ApiService {
   async chatWithAI(data: {
     message: string;
     propertyId?: string;
+    taskId?: string;
     roomType?: string;
     completedTasks?: string[];
     manualTips?: string[];
@@ -235,6 +240,7 @@ class ApiService {
     afterPhotoBase64: string;
     roomType: string;
     propertyId: string;
+    taskId?: string;
   }): Promise<ApiResponse> {
     return this.request('/ai/analyze-before-after', {
       method: 'POST',
@@ -247,6 +253,7 @@ class ApiService {
     photoType: 'before' | 'after' | 'during';
     roomType: string;
     propertyId: string;
+    taskId?: string;
   }): Promise<ApiResponse<PhotoAnalysisData>> {
     return this.request('/ai/analyze-photo-manual', {
       method: 'POST',
@@ -260,6 +267,7 @@ class ApiService {
     photoType: 'before' | 'after' | 'during';
     roomType: string;
     propertyId: string;
+    taskId?: string;
     userMessage?: string;
   }): Promise<ApiResponse<{
     message: string;

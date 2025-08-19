@@ -6,13 +6,31 @@ class GeminiService {
   constructor() {
     const API_KEY = 'AIzaSyDRUvyiwRgV4q86sRAei8U50Pc9UgZTzcM';
     this.genAI = new GoogleGenerativeAI(API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     this.useEnhancedMockData = false;
-    this.resetContext();
+    // Store contexts by task ID instead of single shared context
+    this.contexts = new Map();
   }
 
-  resetContext() {
-    this.context = {
+  // Get context for a specific task
+  getContext(taskId) {
+    if (!taskId) {
+      console.warn('No taskId provided to getContext - using default context');
+      taskId = 'default';
+    }
+    
+    if (!this.contexts.has(taskId)) {
+      console.log(`Creating new context for task: ${taskId}`);
+      this.contexts.set(taskId, this.createNewContext());
+    }
+    
+    console.log(`Using context for task: ${taskId}, total contexts: ${this.contexts.size}`);
+    return this.contexts.get(taskId);
+  }
+
+  // Create a new context for a task
+  createNewContext() {
+    return {
       currentProperty: null,
       currentRoom: null,
       completedTasks: [],
@@ -32,58 +50,86 @@ class GeminiService {
     };
   }
 
-  // Update context with new information
-  updateContext(updates) {
-    this.context = { ...this.context, ...updates };
+  resetContext(taskId = null) {
+    if (taskId) {
+      // Reset specific task context
+      this.contexts.set(taskId, this.createNewContext());
+    } else {
+      // Reset all contexts
+      this.contexts.clear();
+    }
   }
 
-  // Add message to chat history
-  addToChatHistory(message, sender) {
-    this.context.chatHistory.push({
+  // Update context with new information for a specific task
+  updateContext(updates, taskId = null) {
+    if (!taskId) {
+      console.warn('No taskId provided to updateContext - using default context');
+      // For backward compatibility, use a default context
+      const defaultContext = this.getContext('default');
+      Object.assign(defaultContext, updates);
+      return;
+    }
+    
+    console.log(`Updating context for task: ${taskId} with updates:`, Object.keys(updates));
+    const context = this.getContext(taskId);
+    Object.assign(context, updates);
+  }
+
+  // Add message to chat history for a specific task
+  addToChatHistory(message, sender, taskId) {
+    const context = this.getContext(taskId);
+    context.chatHistory.push({
       message,
       sender,
       timestamp: new Date()
     });
     
     // Keep only last 50 messages to manage memory
-    if (this.context.chatHistory.length > 50) {
-      this.context.chatHistory = this.context.chatHistory.slice(-50);
+    if (context.chatHistory.length > 50) {
+      context.chatHistory = context.chatHistory.slice(-50);
     }
   }
 
-  // Generate chat response with workflow management
-  async generateChatResponse(userMessage) {
+  // Generate chat response with workflow management for a specific task
+  async generateChatResponse(userMessage, taskId = null) {
     try {
+      if (!taskId) {
+        console.warn('No taskId provided to generateChatResponse - using default context');
+        taskId = 'default';
+      }
+      
+      const context = this.getContext(taskId);
+      
       // Add user message to history
-      this.addToChatHistory(userMessage, 'user');
+      this.addToChatHistory(userMessage, 'user', taskId);
       
       // Check if workflow is completed and automatically provide summary
-      if (this.context.workflowState === 'completed' && Object.keys(this.context.scoringHistory).length > 0) {
-        const completionSummary = this.generateFinalSummary();
+      if (context.workflowState === 'completed' && Object.keys(context.scoringHistory).length > 0) {
+        const completionSummary = this.generateFinalSummary(context);
         
-        this.addToChatHistory(completionSummary, 'assistant');
+        this.addToChatHistory(completionSummary, 'assistant', taskId);
         return completionSummary;
       }
       
-      const prompt = this.buildWorkflowPrompt(userMessage);
+      const prompt = this.buildWorkflowPrompt(userMessage, context);
       const result = await this.model.generateContent(prompt, { generationConfig: { temperature: 0, top_p: 1 } });
       const response = await result.response;
       const aiResponse = response.text();
       
       // Add AI response to history
-      this.addToChatHistory(aiResponse, 'assistant');
+      this.addToChatHistory(aiResponse, 'assistant', taskId);
       
       return aiResponse;
     } catch (error) {
       console.error('Gemini API error:', error);
       // Use enhanced fallback response with better context awareness
-      return this.getEnhancedFallbackResponse(userMessage);
+      return this.getEnhancedFallbackResponse(userMessage, taskId);
     }
   }
 
-  // Build workflow prompt with memory and state management
-  buildWorkflowPrompt(userMessage) {
-    const { currentProperty, workflowState, beforePhotosLogged, afterPhotosLogged, chatHistory, currentRoomIndex, scoringHistory } = this.context;
+  // Build workflow prompt with memory and state management for a specific context
+  buildWorkflowPrompt(userMessage, context) {
+    const { currentProperty, workflowState, beforePhotosLogged, afterPhotosLogged, chatHistory, currentRoomIndex, scoringHistory } = context;
     
     let prompt = `You are PropertySanta AI, a professional cleaning assistant. You are guiding a cleaner through a systematic cleaning process with photo documentation and scoring.
 
@@ -157,11 +203,17 @@ class GeminiService {
     return prompt;
   }
 
-  // Handle photo upload with memory and workflow state
-  async handlePhotoUpload(photoBase64, photoType, roomType, userMessage) {
+  // Handle photo upload with memory and workflow state for a specific task
+  async handlePhotoUpload(photoBase64, photoType, roomType, userMessage, taskId = null) {
     try {
-      const { workflowState, beforePhotosLogged, afterPhotosLogged, currentProperty } = this.context;
-      console.log('Current context:-------------------------', currentProperty)
+      if (!taskId) {
+        console.warn('No taskId provided to handlePhotoUpload - using default context');
+        taskId = 'default';
+      }
+      
+      const context = this.getContext(taskId);
+      const { workflowState, beforePhotosLogged, afterPhotosLogged, currentProperty } = context;
+      console.log('Current context:-------------------------', context.currentProperty?._id)
       // Use intelligent text analysis to extract room type and photo type
       const textAnalysis = this.analyzeTextForPhotoInfo(userMessage);
       console.log('📝 Text analysis result:', textAnalysis);
@@ -205,10 +257,10 @@ class GeminiService {
       // Analyze photo based on workflow state
       if (detectedPhotoType === 'before') {
         // Log before photo
-        this.context.beforePhotosLogged.push(`${detectedRoomType}-before`);
+        context.beforePhotosLogged.push(`${detectedRoomType}-before`);
         
         // Store the before photo in photoStorage
-        this.context.photoStorage.before[detectedRoomType] = photoBase64;
+        context.photoStorage.before[detectedRoomType] = photoBase64;
         
         // Create photo object
         const photoData = {
@@ -221,13 +273,12 @@ class GeminiService {
         };
         
         // Store in context
-        this.context.photos.push(photoData);
+        context.photos.push(photoData);
         
-        // Save to MongoDB if we have a property ID
-        if (this.context.currentProperty?._id) {
+        if (context.currentProperty?._id) {
           try {
             await Task.findByIdAndUpdate(
-              this.context.currentProperty._id,
+              context.currentProperty._id,
               {
                 $push: {
                   photos: photoData
@@ -235,21 +286,21 @@ class GeminiService {
               },
               { new: true, runValidators: true }
             );
-            console.log(`Saved ${detectedRoomType} before photo to MongoDB`);
+            console.log(`Saved ${detectedRoomType} before photo to MongoDB for task ${taskId}`);
           } catch (error) {
             console.error('Failed to save before photo to MongoDB:', error);
           }
         }
         
         // Get room requirements for emphasis
-        const manualRequirements = this.getManualRequirementsForRoom(detectedRoomType);
+        const manualRequirements = this.getManualRequirementsForRoom(detectedRoomType, context);
         
         // Get all unique room types that need before photos
         const allRooms = [...new Set(currentProperty?.requirements?.map(rt => rt.roomType) || [])];
         
         // Check if all rooms have before photos
         const roomsWithBeforePhotos = new Set(
-          this.context.beforePhotosLogged.map(photo => photo.split('-')[0])
+          context.beforePhotosLogged.map(photo => photo.split('-')[0])
         );
         
         const allBeforePhotosLogged = allRooms.every(room => 
@@ -262,8 +313,8 @@ class GeminiService {
         
         if (allBeforePhotosLogged) {
           // All before photos are done, switch to after photos
-          this.context.workflowState = 'after_photos_requested';
-          this.context.currentRoomIndex = 0;
+          context.workflowState = 'after_photos_requested';
+          context.currentRoomIndex = 0;
           
           const nextRoom = allRooms[0];
           const nextRoomName = nextRoom ? nextRoom.toUpperCase() : 'ROOM';
@@ -288,7 +339,7 @@ class GeminiService {
         const roomName = detectedRoomType || 'the room';
         const roomNameUpper = roomName.toUpperCase();
         
-        if (!this.context.beforePhotosLogged.includes(`${detectedRoomType}-before`)) {
+        if (!context.beforePhotosLogged.includes(`${detectedRoomType}-before`)) {
           return {
             message: `${textAnalysis.message}\n\n❌ I don't see a BEFORE photo for ${roomName}. Please upload "${roomNameUpper} BEFORE" photo first, then the AFTER photo.`,
             shouldAnalyze: false
@@ -296,7 +347,7 @@ class GeminiService {
         }
         
         // Get the before photo for comparison from photoStorage
-        const beforePhotoBase64 = this.context.photoStorage.before[detectedRoomType];
+        const beforePhotoBase64 = context.photoStorage.before[detectedRoomType];
         
         if (!beforePhotoBase64) {
           return {
@@ -306,7 +357,7 @@ class GeminiService {
         }
         
         // Get manual requirements for scoring
-        const manualRequirements = this.getManualRequirementsForRoom(detectedRoomType);
+        const manualRequirements = this.getManualRequirementsForRoom(detectedRoomType, context);
         
         try {
           // Compare before and after photos
@@ -318,13 +369,13 @@ class GeminiService {
           );
           
           // Store the scoring results
-          this.context.scoring = this.context.scoring || {};
-          this.context.scoring[detectedRoomType] = scoring;
+          context.scoring = context.scoring || {};
+          context.scoring[detectedRoomType] = scoring;
           
           // Save analysis results to MongoDB if we have a property ID
-          if (this.context.currentProperty?._id) {
+          if (context.currentProperty?._id) {
             try {
-              const taskId = this.context.currentProperty._id;
+              const taskId = context.currentProperty._id;
               
               // Create issues from scoring results
               const issues = [];
@@ -383,11 +434,11 @@ class GeminiService {
           }
           
           // Log after photo
-          this.context.afterPhotosLogged.push(`${detectedRoomType}-after`);
+          context.afterPhotosLogged.push(`${detectedRoomType}-after`);
           
           // Store the after photo with scoring reference
           // Store the after photo in photoStorage
-          this.context.photoStorage.after[detectedRoomType] = photoBase64;
+          context.photoStorage.after[detectedRoomType] = photoBase64;
           
           // Create photo object with scoring
           const photoData = {
@@ -405,15 +456,15 @@ class GeminiService {
           };
           
           // Store in context
-          this.context.photos.push(photoData);
+          context.photos.push(photoData);
           
           // Save to MongoDB and update room task completion if we have a property ID
-          if (this.context.currentProperty?._id) {
+          if (context.currentProperty?._id) {
             try {
               // Update the property to add the photo and mark the room task as completed
               await Task.findOneAndUpdate(
                 {
-                  _id: this.context.currentProperty._id,
+                  _id: context.currentProperty._id,
                   'requirements.roomType': detectedRoomType
                 },
                 {
@@ -428,7 +479,7 @@ class GeminiService {
                 { new: true, runValidators: true }
               );
               
-              console.log(`Saved ${detectedRoomType} after photo and marked task as completed in MongoDB`);
+              console.log(`Saved ${detectedRoomType} after photo and marked task as completed in MongoDB for task ${taskId}`);
             } catch (error) {
               console.error('Failed to save after photo or update task completion in MongoDB:', error);
             }
@@ -439,7 +490,7 @@ class GeminiService {
           
           // Check if all rooms have after photos
           const roomsWithAfterPhotos = new Set(
-            this.context.afterPhotosLogged.map(photo => photo.split('-')[0])
+            context.afterPhotosLogged.map(photo => photo.split('-')[0])
           );
           
           const allAfterPhotosLogged = allRooms.every(room => 
@@ -489,15 +540,15 @@ class GeminiService {
           
           if (allAfterPhotosLogged) {
             // All photos are done
-            this.context.workflowState = 'completed';
-            this.context.completedAt = new Date();
+            context.workflowState = 'completed';
+            context.completedAt = new Date();
             responseMessage += '\n\n🎉 Great job! You have completed all photo documentation for this property.';
             responseMessage += '\n\nThe property owner will review your work and process your payment.';
         } else {
           // More after photos needed
           const nextRoom = allRooms.find(room => 
             !roomsWithAfterPhotos.has(room.toLowerCase()) && 
-            this.context.beforePhotosLogged.includes(`${room}-before`)
+            context.beforePhotosLogged.includes(`${room}-before`)
           );
           
           if (nextRoom) {
@@ -523,7 +574,7 @@ class GeminiService {
         }
       } else if (detectedPhotoType === 'during') {
         // Handle during photos (progress photos)
-        const manualRequirements = this.getManualRequirementsForRoom(detectedRoomType);
+        const manualRequirements = this.getManualRequirementsForRoom(detectedRoomType, context);
         const analysis = await this.analyzePhotoWithManual(photoBase64, detectedPhotoType, detectedRoomType, manualRequirements);
         
         return {
@@ -657,13 +708,13 @@ class GeminiService {
   }
 
   // Get manual requirements for a specific room
-  getManualRequirementsForRoom(roomType) {
-    if (!this.context.currentProperty || !this.context.currentProperty.requirements) {
+  getManualRequirementsForRoom(roomType, context) {
+    if (!context.currentProperty || !context.currentProperty.requirements) {
       return ['No room tasks available.'];
     }
 
     // Find the room task that matches the room type (case insensitive)
-    const requirements = this.context.currentProperty.requirements.find(
+    const requirements = context.currentProperty.requirements.find(
       rt => rt.roomType.toLowerCase() === roomType.toLowerCase()
     );
 
@@ -677,9 +728,9 @@ class GeminiService {
       )
     ];
 
-    if (this.context.currentProperty.specialInstructions && this.context.currentProperty.specialInstructions.length > 0) {
+    if (context.currentProperty.specialInstructions && context.currentProperty.specialInstructions.length > 0) {
       requirementsList.push('', 'Special Instructions:');
-      requirementsList.push(...this.context.currentProperty.specialInstructions);
+      requirementsList.push(...context.currentProperty.specialInstructions);
     }
 
     return requirementsList;
@@ -703,8 +754,8 @@ class GeminiService {
   }
 
   // Generate final summary
-  generateFinalSummary() {
-    const { currentProperty, afterPhotosLogged, scoringHistory } = this.context;
+  generateFinalSummary(context) {
+    const { currentProperty, afterPhotosLogged, scoringHistory } = context;
     const allRooms = currentProperty?.requirements?.map(rt => rt.roomType) || [];
     
     let summary = `🏠 Property: ${currentProperty?.name || 'Unknown'}\n`;
@@ -747,12 +798,15 @@ class GeminiService {
   }
 
   // Analyze before/after photo comparison for scoring
-  async analyzeBeforeAfterComparison(beforePhotoBase64, afterPhotoBase64, roomType, manualRequirements) {
+  async analyzeBeforeAfterComparison(beforePhotoBase64, afterPhotoBase64, roomType, manualRequirements, taskId = null) {
     try {
       console.log(`Starting before/after analysis for ${roomType}`);
       
-      // Store the before photo for this room in photoStorage
-      this.context.photoStorage.before[roomType] = beforePhotoBase64;
+      // Store the before photo for this room in photoStorage if we have a taskId
+      if (taskId) {
+        const context = this.getContext(taskId);
+        context.photoStorage.before[roomType] = beforePhotoBase64;
+      }
       
       // Validate and prepare images
       const beforeImage = this.prepareImageForAnalysis(beforePhotoBase64);
@@ -828,7 +882,7 @@ class GeminiService {
       
       try {
         // Use the standard model with image data
-        const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+        const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
         
         // Format the content parts as in the working example
         const contentParts = [
@@ -1425,12 +1479,12 @@ class GeminiService {
   }
 
   // Enhanced fallback response with better context awareness
-  getEnhancedFallbackResponse(userMessage) {
+  getEnhancedFallbackResponse(userMessage, taskId = null) {
     const lowerMessage = userMessage.toLowerCase();
-    const { chatHistory, currentProperty, workflowState } = this.context;
+    const context = this.getContext(taskId);
     
     // Get the last few messages for context
-    const recentMessages = chatHistory.slice(-3);
+    const recentMessages = context.chatHistory.slice(-3);
 
     
     // Handle questions about why AI said something specific
@@ -1440,7 +1494,7 @@ class GeminiService {
         
     // Handle simple photo type messages
     if (lowerMessage === 'before' || lowerMessage === 'after' || lowerMessage === 'during') {
-      const { currentProperty, currentRoomIndex } = this.context;
+      const { currentProperty, currentRoomIndex } = context;
       const allRooms = currentProperty?.requirements?.map(rt => rt.roomType) || [];
       const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
       
@@ -1448,8 +1502,8 @@ class GeminiService {
     }
     
     if (lowerMessage.includes('welcome') || lowerMessage.includes('generate a welcome')) {
-      if (this.context.currentProperty) {
-        const property = this.context.currentProperty;
+      if (context.currentProperty) {
+        const property = context.currentProperty;
         return `🏠 Welcome to ${property.name}!
 
                 📋 Property Details:
@@ -1494,8 +1548,9 @@ class GeminiService {
   }
 
   // Get current progress status
-  getCurrentProgressStatus() {
-    const { currentProperty, currentRoomIndex, workflowState, beforePhotosLogged, afterPhotosLogged, scoringHistory } = this.context;
+  getCurrentProgressStatus(taskId = null) {
+    const context = this.getContext(taskId);
+    const { currentProperty, currentRoomIndex, workflowState, beforePhotosLogged, afterPhotosLogged, scoringHistory } = context;
     
     if (!currentProperty) {
       return "We haven't started any cleaning tasks yet! 🏠 Let me know which property you'd like to work on, and I'll help you get started.";
@@ -1548,9 +1603,10 @@ class GeminiService {
   }
   
   // Get next steps guidance
-  getNextSteps() {
-    const { workflowState, currentRoomIndex, beforePhotosLogged, afterPhotosLogged } = this.context;
-    const allRooms = this.context.currentProperty?.requirements?.map(rt => rt.roomType) || [];
+  getNextSteps(taskId = null) {
+    const context = this.getContext(taskId);
+    const { workflowState, currentRoomIndex, beforePhotosLogged, afterPhotosLogged } = context;
+    const allRooms = context.currentProperty?.requirements?.map(rt => rt.roomType) || [];
     const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
     
     switch (workflowState) {
@@ -1586,8 +1642,9 @@ class GeminiService {
   }
   
   // Get room-specific information
-  getRoomSpecificInfo(userMessage) {
-    const { currentProperty, currentRoomIndex } = this.context;
+  getRoomSpecificInfo(userMessage, taskId = null) {
+    const context = this.getContext(taskId);
+    const { currentProperty, currentRoomIndex } = context;
     if (!currentProperty) {
       return "We haven't started any property yet! 🏠 Let me know which property you'd like to work on.";
     }
@@ -1609,12 +1666,12 @@ class GeminiService {
     
     return `🏠 **${targetRoom.toUpperCase()} Information:**
           • Key Requirements: ${roomTask.manualRequirements.join(', ')}
-          • Current Status: ${this.getRoomStatus(targetRoom)}`;
+          • Current Status: ${this.getRoomStatus(targetRoom, context)}`;
   }
   
   // Get room status
-  getRoomStatus(roomType) {
-    const { beforePhotosLogged, afterPhotosLogged, scoringHistory } = this.context;
+  getRoomStatus(roomType, context) {
+    const { beforePhotosLogged, afterPhotosLogged, scoringHistory } = context;
     const hasBefore = beforePhotosLogged?.includes(roomType);
     const hasAfter = afterPhotosLogged?.includes(roomType);
     const hasScore = scoringHistory?.[roomType];
@@ -1627,9 +1684,10 @@ class GeminiService {
   }
   
   // Get photo guidance
-  getPhotoGuidance() {
-    const { workflowState, currentRoomIndex } = this.context;
-    const allRooms = this.context.currentProperty?.requirements?.map(rt => rt.roomType) || [];
+  getPhotoGuidance(taskId = null) {
+    const context = this.getContext(taskId);
+    const { workflowState, currentRoomIndex } = context;
+    const allRooms = context.currentProperty?.requirements?.map(rt => rt.roomType) || [];
     const currentRoom = allRooms[currentRoomIndex] || 'bedroom';
     
     if (workflowState === 'INITIAL' || workflowState === 'BEFORE_PHOTOS_REQUESTED') {
@@ -1642,8 +1700,9 @@ class GeminiService {
   }
   
   // Get manual requirements
-  getManualRequirements() {
-    const { currentProperty, currentRoomIndex } = this.context;
+  getManualRequirements(taskId = null) {
+    const context = this.getContext(taskId);
+    const { currentProperty, currentRoomIndex } = context;
     if (!currentProperty) {
       return "We haven't started any property yet! 🏠 Let me know which property you'd like to work on to see the manual requirements.";
     }
@@ -1661,8 +1720,9 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}`;
   }
   
   // Get scoring information
-  getScoringInfo() {
-    const { scoringHistory } = this.context;
+  getScoringInfo(taskId = null) {
+    const context = this.getContext(taskId);
+    const { scoringHistory } = context;
     
     if (!scoringHistory || Object.keys(scoringHistory).length === 0) {
       return "📊 **Scoring:** No scores yet! Take AFTER photos of cleaned rooms to get quality scores and grades.";
@@ -1685,7 +1745,7 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}`;
   }
 
   // Get mock before/after analysis (DEPRECATED - Use error handling instead)
-  getMockBeforeAfterAnalysis() {
+  getMockBeforeAfterAnalysis(taskId = null) {
     console.warn('DEPRECATED: getMockBeforeAfterAnalysis called - should use error handling instead');
     return {
       error: true,
@@ -1763,7 +1823,7 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}`;
   }
 
   // Generate workflow guidance based on manual requirements
-  async generateWorkflowGuidance(roomType, manualRequirements, currentProgress = 'Starting') {
+  async generateWorkflowGuidance(roomType, manualRequirements, currentProgress = 'Starting', taskId = null) {
     try {
       const prompt = this.buildWorkflowGuidancePrompt(roomType, manualRequirements, currentProgress);
       const result = await this.model.generateContent(prompt, { generationConfig: { temperature: 0, top_p: 1 } });
@@ -1845,7 +1905,7 @@ ${roomTask.manualRequirements.map(req => `• ${req}`).join('\n')}`;
   }
 
   // Get mock workflow guidance (DEPRECATED - Use error handling instead)
-  getMockWorkflowGuidance() {
+  getMockWorkflowGuidance(taskId = null) {
     console.warn('DEPRECATED: getMockWorkflowGuidance called - should use error handling instead');
     return {
       error: true,

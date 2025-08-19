@@ -92,6 +92,7 @@ export default function ChatPage() {
   const searchParams = useSearchParams();
 
   const propertyId = searchParams.get('propertyId');
+  const taskId = searchParams.get('taskId');
   const propertyName = searchParams.get('propertyName');
 
   const scrollToBottom = () => {
@@ -125,7 +126,8 @@ export default function ChatPage() {
             // Get AI-generated welcome message from backend
             const aiResponse = await apiService.chatWithAI({
               message: "Generate a welcome message for this property",
-              propertyId: response.property._id
+              propertyId: response.property.propertyId,
+              taskId: taskId
             });
             if (aiResponse.success && !cancelled) {
               setMessages([{
@@ -140,7 +142,7 @@ export default function ChatPage() {
               // Fallback welcome message
               setMessages([{
                 id: '1',
-                text: `Welcome to ${response.property.name}! I'm your AI assistant. How can I help you with the cleaning tasks?`,
+                text: `Welcome to ${response.property.name}! pls check network connection and try again`,
                 sender: 'system',
                 timestamp: new Date(),
                 type: 'system'
@@ -212,7 +214,8 @@ export default function ChatPage() {
       // Call backend AI service
       const response = await apiService.chatWithAI({
         message: userMessage,
-        propertyId: currentProperty?._id,
+        propertyId: currentProperty?.propertyId,
+        taskId: taskId,
         roomType: currentRoom,
         completedTasks,
         manualTips
@@ -529,7 +532,8 @@ export default function ChatPage() {
           photoBase64: selectedImage,
           photoType,
           roomType,
-          propertyId: currentProperty?._id || '',
+          propertyId: currentProperty?.propertyId || '',
+          taskId: taskId,
           userMessage: displayText // Pass the full user message for intelligent analysis
         });
         
