@@ -38,7 +38,6 @@ exports.getTasks = async (req, res) => {
     if (assignedTo) filter.assignedTo = assignedTo;
     
     const tasks = await Task.find(filter)
-      .populate('assignedTo', 'name email')
       .sort({ scheduledTime: -1 });
       
     res.status(200).json({ success: true, count: tasks.length, data: tasks });
@@ -54,9 +53,7 @@ exports.getTasks = async (req, res) => {
 exports.getTask = async (req, res) => {
   try {
     const task = await Task.findById(req.params.id)
-      .populate('assignedTo', 'name email')
-      .populate('photos.uploadedBy', 'name')
-      .populate('issues.reportedBy', 'name');
+      .populate('assignedTo', 'name email');
       
     if (!task) {
       return res.status(404).json({ success: false, error: 'Task not found' });

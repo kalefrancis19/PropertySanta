@@ -14,13 +14,16 @@ import {
   CheckCircle,
   Users,
   Briefcase,
-  Store
+  Store,
+  FileText,
+  Eye
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { apiService } from '../../services/apiService';
 import { useAuth } from '../../components/AuthProvider';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
+import TaskResultModal from '../../components/TaskResultModal';
 
 export default function TasksPage() {
   const [activeTab, setActiveTab] = useState('tasks');
@@ -28,6 +31,8 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [propertyDetails, setPropertyDetails] = useState<{[key: string]: any}>({});
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
   const loadedProperties = useRef<Set<string>>(new Set());
   const router = useRouter();
   const { authState } = useAuth();
@@ -115,7 +120,7 @@ export default function TasksPage() {
     return () => {
       isMounted = false;
     };
-  }, [authState.isAuthenticated, authState.user?.id]);
+  }, [authState.isAuthenticated, authState.user?._id]);
 
   // Fetch property details for each task
   useEffect(() => {
@@ -205,6 +210,16 @@ export default function TasksPage() {
       case 'retail': return 'text-orange-500';
       default: return 'text-gray-500';
     }
+  };
+
+  const handleViewResult = (task: any) => {
+    setSelectedTask(task);
+    setIsResultModalOpen(true);
+  };
+
+  const handleCloseResultModal = () => {
+    setIsResultModalOpen(false);
+    setSelectedTask(null);
   };
 
 
@@ -338,10 +353,19 @@ export default function TasksPage() {
                             <span className="font-semibold">No Assigned</span>
                           </button>
                         ) : stats.completed === stats.total ? (
-                          <button className="flex items-center space-x-2 bg-gray-400 text-white px-6 py-3 rounded-2xl shadow-lg cursor-not-allowed">
-                            <CheckCircle className="w-4 h-4" />
-                            <span className="font-semibold">Completed</span>
-                          </button>
+                          <div className="flex items-center space-x-3">
+                            <button className="flex items-center space-x-2 bg-gray-400 text-white px-6 py-3 rounded-2xl shadow-lg cursor-not-allowed">
+                              <CheckCircle className="w-4 h-4" />
+                              <span className="font-semibold">Completed</span>
+                            </button>
+                            <button 
+                              onClick={() => handleViewResult(task)}
+                              className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                            >
+                              <Eye className="w-4 h-4" />
+                              <span className="font-semibold">View Result</span>
+                            </button>
+                          </div>
                         ) : stats.completed === 0 ? (
                           <button 
                             onClick={() => router.push(`/chat?propertyId=${task.propertyId}&taskId=${task._id}&propertyName=${encodeURIComponent(propertyDetails[task.propertyId]?.name || '')}`)}
@@ -395,17 +419,13 @@ export default function TasksPage() {
               <List className="w-6 h-6" />
               <span className="text-xs font-medium">Tasks</span>
             </button>
-            {/* <button 
-              onClick={() => handleTabChange('chat')}
-              className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 ${
-                activeTab === 'chat' 
-                  ? 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' 
-                  : 'text-gray-400 hover:text-blue-500'
-              }`}
+            <button 
+              onClick={() => router.push('/reports')}
+              className="flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 text-gray-400 hover:text-blue-500"
             >
-              <MessageCircle className="w-6 h-6" />
-              <span className="text-xs font-medium">Chat</span>
-            </button> */}
+              <FileText className="w-6 h-6" />
+              <span className="text-xs font-medium">Reports</span>
+            </button>
             <button 
               onClick={() => handleTabChange('profile')}
               className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 ${
@@ -419,6 +439,18 @@ export default function TasksPage() {
             </button>
           </div>
         </div>
+
+        {/* Task Result Modal */}
+        {selectedTask && (
+          <TaskResultModal
+            isOpen={isResultModalOpen}
+            onClose={handleCloseResultModal}
+            taskId={selectedTask._id}
+            propertyName={propertyDetails[selectedTask.propertyId]?.name || 'Unknown Property'}
+            propertyAddress={propertyDetails[selectedTask.propertyId]?.address || 'No address provided'}
+            taskData={selectedTask}
+          />
+        )}
       </div>
     </ProtectedRoute>
   );

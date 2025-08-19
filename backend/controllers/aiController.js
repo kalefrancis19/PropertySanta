@@ -608,6 +608,42 @@ const testTextAnalysis = async (req, res) => {
   }
 };
 
+// Get scoring history for a task
+const getScoringHistory = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    if (!taskId) return res.status(400).json({ success: false, message: 'Task ID is required' });
+
+    const scoringHistory = scoringService.getScoringHistory(taskId);
+    if (!scoringHistory) {
+      return res.status(404).json({ success: false, message: 'No scoring history found for this task' });
+    }
+
+    res.json({ success: true, data: scoringHistory });
+  } catch (error) {
+    console.error('Get scoring history error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get scoring history' });
+  }
+};
+
+// Get property scoring summary
+const getPropertyScoringSummary = async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    if (!propertyId) return res.status(400).json({ success: false, message: 'Property ID is required' });
+
+    const summary = scoringService.getPropertyScoringSummary(propertyId);
+    if (!summary) {
+      return res.status(404).json({ success: false, message: 'No scoring summary found for this property' });
+    }
+
+    res.json({ success: true, data: summary });
+  } catch (error) {
+    console.error('Get property scoring summary error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get property scoring summary' });
+  }
+};
+
 module.exports = {
   chatWithAI,
   handlePhotoUpload,
@@ -623,5 +659,7 @@ module.exports = {
   updateContext,
   resetAIContext,
   getManualRequirements,
-  testTextAnalysis
+  testTextAnalysis,
+  getScoringHistory,
+  getPropertyScoringSummary
 };

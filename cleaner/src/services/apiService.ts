@@ -188,6 +188,10 @@ class ApiService {
     return this.request(`/tasks${queryString}`);
   }
 
+  async getTask(taskId: string): Promise<ApiResponse> {
+    return this.request(`/tasks/${taskId}`);
+  }
+
   async getPropertyDetails(propertyId: string): Promise<PropertyResponse> {
     return this.request(`/properties/${propertyId}`) as Promise<PropertyResponse>;
   }

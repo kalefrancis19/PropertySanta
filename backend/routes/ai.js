@@ -17,6 +17,8 @@ router.post('/reset-workflow', auth, aiController.resetWorkflow);
 router.get('/workflow-state/:propertyId', auth, aiController.getWorkflowState);
 router.get('/manual-requirements/:propertyId/:roomType', auth, aiController.getManualRequirements);
 router.get('/chat-history/:taskId', auth, aiController.getChatHistory);
+router.get('/scoring-history/:taskId', auth, aiController.getScoringHistory);
+router.get('/property-scoring-summary/:propertyId', auth, aiController.getPropertyScoringSummary);
 router.post('/save-chat-message', auth, aiController.saveChatMessageAPI);
 router.post('/reset-context', aiController.resetAIContext); // reset AI context
 router.post('/test-text-analysis', aiController.testTextAnalysis);
