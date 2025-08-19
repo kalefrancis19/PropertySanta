@@ -15,15 +15,17 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotificationContext } from '@/contexts/NotificationContext';
+import { parseLoginError, validateEmail, validatePassword } from '@/utils/errorHandler';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const { theme, toggleTheme } = useTheme();
   const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const { showSuccess, showError } = useNotificationContext();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
 
@@ -53,14 +55,29 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Basic validation
+    console.log('Login form submitted with:', { email, password });
+    
+    // Enhanced validation
     if (!email || !password) {
-      setError('Please enter both email and password');
+      console.log('Showing validation error');
+      showError('Validation Error', 'Please enter both email and password');
+      return;
+    }
+    
+    if (!validateEmail(email)) {
+      console.log('Showing invalid email error');
+      showError('Invalid Email', 'Please enter a valid email address');
+      return;
+    }
+    
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      console.log('Showing invalid password error');
+      showError('Invalid Password', passwordValidation.errors.join(', '));
       return;
     }
     
     try {
-      setError('');
       setIsLoading(true);
       
       // Get the return URL from the query parameters or default to '/'
@@ -69,13 +86,16 @@ export default function LoginPage() {
       // Call the login function
       await login(email, password);
       
+      // Show success notification
+      showSuccess('Login Successful', 'Welcome back! Redirecting to dashboard...');
+      
       // The login function will handle the redirect
       // We don't need to do it here as the useEffect will handle it
       
     } catch (err) {
       console.error('Login error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Login failed. Please try again.';
-      setError(errorMessage);
+      const loginError = parseLoginError(err);
+      showError(loginError.message, loginError.details || 'Please try again.');
       setIsLoading(false);
     }
   };
@@ -139,12 +159,6 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <AlertCircle className="h-5 w-5 text-red-500" />
-                  <span className="text-sm text-red-700 dark:text-red-400">{error}</span>
-                </div>
-              )}
               
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

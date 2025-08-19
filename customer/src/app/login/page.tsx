@@ -15,15 +15,17 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotificationContext } from '@/contexts/NotificationContext';
+import { parseLoginError, validateEmail, validatePassword } from '@/utils/errorHandler';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const { theme, toggleTheme } = useTheme();
   const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const { showSuccess, showError } = useNotificationContext();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
 
@@ -53,14 +55,24 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Basic validation
+    // Enhanced validation
     if (!email || !password) {
-      setError('Please enter both email and password');
+      showError('Validation Error', 'Please enter both email and password');
+      return;
+    }
+    
+    if (!validateEmail(email)) {
+      showError('Invalid Email', 'Please enter a valid email address');
+      return;
+    }
+    
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      showError('Invalid Password', passwordValidation.errors.join(', '));
       return;
     }
     
     try {
-      setError('');
       setIsLoading(true);
       
       // Get the return URL from the query parameters or default to '/'
@@ -69,13 +81,16 @@ export default function LoginPage() {
       // Call the login function
       await login(email, password);
       
+      // Show success notification
+      showSuccess('Login Successful', 'Welcome back! Redirecting to dashboard...');
+      
       // The login function will handle the redirect
       // We don't need to do it here as the useEffect will handle it
       
     } catch (err) {
       console.error('Login error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Login failed. Please try again.';
-      setError(errorMessage);
+      const loginError = parseLoginError(err);
+      showError(loginError.message, loginError.details || 'Please try again.');
       setIsLoading(false);
     }
   };
