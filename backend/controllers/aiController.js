@@ -64,7 +64,7 @@ const chatWithAI = async (req, res) => {
     const aiResponse = await geminiService.generateChatResponse(message, currentTaskId);
     const context = geminiService.getContext(currentTaskId);
 
-    // Save chat history to task (skip if flag is set)
+        // Save chat history to task (skip if flag is set)
     if (currentTaskId && !skipChatHistory) {
       try {
         const task = await Task.findById(currentTaskId);
@@ -391,6 +391,69 @@ const getChatHistory = async (req, res) => {
   }
 };
 
+// Save a single chat message to task history
+const saveChatMessage = async (taskId, messageData) => {
+  try {
+    if (!taskId) return;
+
+    const chatMessage = {
+      message: messageData.message,
+      sender: messageData.sender,
+      timestamp: new Date(),
+      type: messageData.type || 'text',
+      isCommand: messageData.isCommand || false,
+      commandType: messageData.commandType,
+      data: messageData.data,
+      imageUrl: messageData.imageUrl,
+      imageType: messageData.imageType,
+      roomType: messageData.roomType
+    };
+
+    await Task.findByIdAndUpdate(
+      taskId,
+      {
+        $push: {
+          chatHistory: chatMessage
+        }
+      },
+      { new: true }
+    );
+
+    console.log(`Saved chat message to task ${taskId}:`, messageData.type, messageData.message.substring(0, 50));
+  } catch (error) {
+    console.error('Error saving chat message:', error);
+    // Continue even if save fails - don't break the user flow
+  }
+};
+
+// API endpoint to save a single chat message
+const saveChatMessageAPI = async (req, res) => {
+  try {
+    const { taskId, message, sender, type, isCommand, commandType, data, imageUrl, imageType, roomType } = req.body;
+    
+    if (!taskId || !message || !sender) {
+      return res.status(400).json({ success: false, message: 'Task ID, message, and sender are required' });
+    }
+
+    await saveChatMessage(taskId, {
+      message,
+      sender,
+      type,
+      isCommand,
+      commandType,
+      data,
+      imageUrl,
+      imageType,
+      roomType
+    });
+
+    res.json({ success: true, message: 'Chat message saved successfully' });
+  } catch (error) {
+    console.error('Save chat message API error:', error);
+    res.status(500).json({ success: false, message: 'Failed to save chat message' });
+  }
+};
+
 // Reset workflow
 const resetWorkflow = async (req, res) => {
   try {
@@ -554,6 +617,7 @@ module.exports = {
   generateWorkflowGuidance,
   getWorkflowState,
   getChatHistory,
+  saveChatMessageAPI,
   resetWorkflow,
   updateWorkflowProgress,
   updateContext,

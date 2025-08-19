@@ -196,6 +196,24 @@ class ApiService {
     return this.request(`/ai/chat-history/${taskId}`);
   }
 
+  async saveChatMessage(data: {
+    taskId: string;
+    message: string;
+    sender: 'user' | 'system';
+    type?: 'text' | 'photo' | 'command' | 'system' | 'scoring' | 'workflow' | 'manual';
+    isCommand?: boolean;
+    commandType?: 'start' | 'photo' | 'task' | 'complete' | 'note';
+    data?: any;
+    imageUrl?: string;
+    imageType?: 'before' | 'after' | 'during';
+    roomType?: string;
+  }): Promise<ApiResponse> {
+    return this.request('/ai/save-chat-message', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async updateRoomTaskStatus(propertyId: string, roomType: string, taskIndex: number, isCompleted: boolean): Promise<ApiResponse> {
     return this.request(`/tasks/property/${propertyId}/room-task`, {
       method: 'PATCH',

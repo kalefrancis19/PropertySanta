@@ -121,8 +121,34 @@ const Taskschema = new mongoose.Schema({
     },
     type: {
       type: String,
-      enum: ['text', 'photo', 'system'],
+      enum: ['text', 'photo', 'command', 'system', 'scoring', 'workflow', 'manual'],
       default: 'text'
+    },
+    isCommand: {
+      type: Boolean,
+      default: false
+    },
+    commandType: {
+      type: String,
+      enum: ['start', 'photo', 'task', 'complete', 'note'],
+      default: undefined
+    },
+    data: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined
+    },
+    imageUrl: {
+      type: String,
+      default: undefined
+    },
+    imageType: {
+      type: String,
+      enum: ['before', 'after', 'during'],
+      default: undefined
+    },
+    roomType: {
+      type: String,
+      default: undefined
     }
   }],
 

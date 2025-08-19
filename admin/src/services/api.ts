@@ -31,7 +31,7 @@ api.interceptors.request.use((config) => {
 // Add request interceptor for debugging
 api.interceptors.request.use(
   (config) => {
-    console.log('Making request to:', config.baseURL + config.url);
+    console.log('Making request to:', (config.baseURL || '') + (config.url || ''));
     return config;
   },
   (error) => {
@@ -40,7 +40,7 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for debugging
+// Add response interceptor for debugging and auth handling
 api.interceptors.response.use(
   (response) => {
     console.log('Response received:', response.status, response.config.url);
@@ -48,6 +48,20 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('Response error:', error.response?.status, error.config?.url, error.message);
+    
+    // Handle 401 Unauthorized errors
+    if (error.response?.status === 401) {
+      // Clear invalid token
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      delete api.defaults.headers.common['Authorization'];
+      
+      // Redirect to login if we're not already there
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -74,7 +88,6 @@ export interface Property {
   }>;
   createdAt?: string;
   updatedAt?: string;
-  customer?: string;
 }
 
 export interface CreatePropertyRequest {
@@ -253,7 +266,18 @@ export interface Task {
   photos: Photo[];
   issues: Issue[];
   aiFeedback: AIFeedback[];
-  chatHistory?: string;
+  chatHistory?: Array<{
+    message: string;
+    sender: 'user' | 'system';
+    timestamp: Date;
+    type: 'text' | 'photo' | 'command' | 'system' | 'scoring' | 'workflow' | 'manual';
+    isCommand?: boolean;
+    commandType?: 'start' | 'photo' | 'task' | 'complete' | 'note';
+    data?: any;
+    imageUrl?: string;
+    imageType?: 'before' | 'after' | 'during';
+    roomType?: string;
+  }>;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -354,6 +378,28 @@ export const taskAPI = {
       { isCompleted }
     );
     return response.data.data;
+  },
+
+  // Get chat history for a task
+  async getChatHistory(taskId: string): Promise<Array<{
+    message: string;
+    sender: 'user' | 'system';
+    timestamp: Date;
+    type: 'text' | 'photo' | 'command' | 'system' | 'scoring' | 'workflow' | 'manual';
+    isCommand?: boolean;
+    commandType?: 'start' | 'photo' | 'task' | 'complete' | 'note';
+    data?: any;
+    imageUrl?: string;
+    imageType?: 'before' | 'after' | 'during';
+    roomType?: string;
+  }>> {
+    try {
+      const response = await api.get(`/ai/chat-history/${taskId}`);
+      return response.data.data.chatHistory || [];
+    } catch (error) {
+      console.error('Error fetching chat history:', error);
+      throw error;
+    }
   }
 };
 

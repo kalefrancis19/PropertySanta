@@ -254,7 +254,18 @@ export interface Task {
   photos: Photo[];
   issues: Issue[];
   aiFeedback: AIFeedback[];
-  chatHistory?: string;
+  chatHistory?: Array<{
+    message: string;
+    sender: 'user' | 'system';
+    timestamp: Date;
+    type: 'text' | 'photo' | 'command' | 'system' | 'scoring' | 'workflow' | 'manual';
+    isCommand?: boolean;
+    commandType?: 'start' | 'photo' | 'task' | 'complete' | 'note';
+    data?: any;
+    imageUrl?: string;
+    imageType?: 'before' | 'after' | 'during';
+    roomType?: string;
+  }>;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -355,6 +366,17 @@ export const taskAPI = {
       { isCompleted }
     );
     return response.data.data;
+  },
+
+  // Get chat history for a task
+  async getChatHistory(taskId: string): Promise<Array<{
+    message: string;
+    sender: 'user' | 'system';
+    timestamp: Date;
+    type: 'text' | 'photo' | 'system';
+  }>> {
+    const response = await api.get(`/ai/chat-history/${taskId}`);
+    return response.data.data.chatHistory || [];
   }
 };
 

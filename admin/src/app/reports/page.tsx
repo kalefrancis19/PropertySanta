@@ -8,13 +8,16 @@ import {
   Camera, 
   User,
   Download,
-  Share
+  Share,
+  MessageCircle
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import DashboardLayout from '@/components/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import ChatHistory from '@/components/ChatHistory';
 import { taskAPI, propertyAPI, userAPI, Task, TaskRequirement, Photo, Issue, AIFeedback, Property } from '@/services/api';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Extend the Task interface to include property name and address
 interface TaskWithProperty extends Omit<Task, 'assignedTo'> {
@@ -100,7 +103,10 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showChatHistory, setShowChatHistory] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
 
   // Fetch all necessary data on component mount
   useEffect(() => {
@@ -387,6 +393,18 @@ export default function ReportsPage() {
                       <p className="text-gray-600 dark:text-gray-400">{selectedReport.date}</p>
                     </div>
                     <div className="flex items-center space-x-2">
+                      {isAuthenticated && (
+                        <button 
+                          onClick={() => {
+                            setSelectedTaskId(selectedReport.id);
+                            setShowChatHistory(true);
+                          }}
+                          className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                          title="View Chat History"
+                        >
+                          <MessageCircle className="h-5 w-5" />
+                        </button>
+                      )}
                       <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                         <Download className="h-5 w-5" />
                       </button>
@@ -589,6 +607,18 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+
+      {/* Chat History Modal */}
+      {selectedTaskId && isAuthenticated && (
+        <ChatHistory
+          taskId={selectedTaskId}
+          isOpen={showChatHistory}
+          onClose={() => {
+            setShowChatHistory(false);
+            setSelectedTaskId(null);
+          }}
+        />
+      )}
     </DashboardLayout>
   </ProtectedRoute>
   );

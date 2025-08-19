@@ -236,7 +236,7 @@ export default function ChatPage() {
     return () => { cancelled = true; };
   }, [propertyId]);
 
-  const addMessage = (text: string, sender: 'user' | 'system', type: ChatMessage['type'] = 'text', isCommand = false, commandType?: ChatMessage['commandType'], data?: any, imageUrl?: string, imageType?: 'before' | 'after' | 'during', roomType?: string): string => {
+  const addMessage = async (text: string, sender: 'user' | 'system', type: ChatMessage['type'] = 'text', isCommand = false, commandType?: ChatMessage['commandType'], data?: any, imageUrl?: string, imageType?: 'before' | 'after' | 'during', roomType?: string): Promise<string> => {
     const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newMessage: ChatMessage = {
       id: messageId,
@@ -252,6 +252,28 @@ export default function ChatPage() {
       roomType
     };
     setMessages(prev => [...prev, newMessage]);
+
+    // Save message to database if we have a taskId
+    if (taskId) {
+      try {
+        await apiService.saveChatMessage({
+          taskId,
+          message: text,
+          sender,
+          type,
+          isCommand,
+          commandType,
+          data,
+          imageUrl,
+          imageType,
+          roomType
+        });
+      } catch (error) {
+        console.error('Error saving chat message to database:', error);
+        // Continue even if save fails - don't break the user flow
+      }
+    }
+
     return messageId;
   };
 
@@ -273,7 +295,7 @@ export default function ChatPage() {
       });
       
       if (response.success) {
-        addMessage(response.data.message, 'system', 'system');
+        await addMessage(response.data.message, 'system', 'system');
         
         // Update local state with context information if available
         if (response.data.workflowState) {
@@ -283,20 +305,20 @@ export default function ChatPage() {
       } else {
         // Check if it's a network error or API error
         if (response.message?.includes('Network error') || response.message?.includes('Failed to fetch')) {
-          addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
+          await addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
         } else if (response.message?.includes('API error') || response.message?.includes('Gemini')) {
-          addMessage('🤖 AI Service Error: The AI service is temporarily unavailable. Please try again in a few moments.', 'system', 'system');
+          await addMessage('🤖 AI Service Error: The AI service is temporarily unavailable. Please try again in a few moments.', 'system', 'system');
         } else {
-          addMessage('❌ Failed to process your request. Please try again.', 'system', 'system');
+          await addMessage('❌ Failed to process your request. Please try again.', 'system', 'system');
         }
       }
     } catch (error) {
       console.error('AI response error:', error);
       // Check if it's a network error
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
+        await addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
       } else {
-        addMessage('❌ Failed to process your request. Please try again.', 'system', 'system');
+        await addMessage('❌ Failed to process your request. Please try again.', 'system', 'system');
       }
     } finally {
       setIsTyping(false);
@@ -305,7 +327,7 @@ export default function ChatPage() {
 
   const handleGetManualRequirements = async (roomType: string) => {
     if (!propertyId) {
-      addMessage('❌ Property ID is required to get manual requirements.', 'system', 'system');
+      await addMessage('❌ Property ID is required to get manual requirements.', 'system', 'system');
       return;
     }
 
@@ -344,24 +366,24 @@ export default function ChatPage() {
           });
         }
         
-        addMessage(manualText, 'system', 'manual', false, undefined, manualData);
+        await addMessage(manualText, 'system', 'manual', false, undefined, manualData);
       } else {
         // Check if it's a network error or API error
         if (response.message?.includes('Network error') || response.message?.includes('Failed to fetch')) {
-          addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
+          await addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
         } else if (response.message?.includes('API error') || response.message?.includes('Gemini')) {
-          addMessage('🤖 AI Service Error: The AI service is temporarily unavailable. Please try again in a few moments.', 'system', 'system');
+          await addMessage('🤖 AI Service Error: The AI service is temporarily unavailable. Please try again in a few moments.', 'system', 'system');
         } else {
-          addMessage('❌ Failed to get manual requirements. Please try again.', 'system', 'system');
+          await addMessage('❌ Failed to get manual requirements. Please try again.', 'system', 'system');
         }
       }
     } catch (error) {
       console.error('Error getting manual requirements:', error);
       // Check if it's a network error
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
+        await addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
       } else {
-        addMessage('❌ Failed to get manual requirements. Please try again.', 'system', 'system');
+        await addMessage('❌ Failed to get manual requirements. Please try again.', 'system', 'system');
       }
     } finally {
       setIsTyping(false);
@@ -370,7 +392,7 @@ export default function ChatPage() {
 
   const handleGenerateWorkflow = async (roomType: string, progress: string = 'Starting') => {
     if (!propertyId) {
-      addMessage('❌ Property ID is required to generate workflow.', 'system', 'system');
+      await addMessage('❌ Property ID is required to generate workflow.', 'system', 'system');
       return;
     }
 
@@ -428,24 +450,24 @@ export default function ChatPage() {
           });
         }
         
-        addMessage(workflowText, 'system', 'workflow', false, undefined, workflowData);
+        await addMessage(workflowText, 'system', 'workflow', false, undefined, workflowData);
       } else {
         // Check if it's a network error or API error
         if (response.message?.includes('Network error') || response.message?.includes('Failed to fetch')) {
-          addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
+          await addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
         } else if (response.message?.includes('API error') || response.message?.includes('Gemini')) {
-          addMessage('🤖 AI Service Error: The AI service is temporarily unavailable. Please try again in a few moments.', 'system', 'system');
+          await addMessage('🤖 AI Service Error: The AI service is temporarily unavailable. Please try again in a few moments.', 'system', 'system');
         } else {
-          addMessage('❌ Failed to generate workflow. Please try again.', 'system', 'system');
+          await addMessage('❌ Failed to generate workflow. Please try again.', 'system', 'system');
         }
       }
     } catch (error) {
       console.error('Error generating workflow:', error);
       // Check if it's a network error
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
+        await addMessage('🌐 Network Error: Unable to connect to the server. Please check your internet connection and try again.', 'system', 'system');
       } else {
-        addMessage('❌ Failed to generate workflow. Please try again.', 'system', 'system');
+        await addMessage('❌ Failed to generate workflow. Please try again.', 'system', 'system');
       }
     } finally {
       setIsTyping(false);
@@ -557,7 +579,7 @@ export default function ChatPage() {
       
       // Add photo message to chat with proper type detection
       const displayText = userMessage || `${roomType.toUpperCase()} ${photoType.toUpperCase()}`;
-      addMessage(displayText, 'user', 'photo', true, 'photo', undefined, selectedImage, photoType, roomType);
+              await addMessage(displayText, 'user', 'photo', true, 'photo', undefined, selectedImage, photoType, roomType);
       
       // Clear input and selected image immediately when starting analysis
       setInputText('');
@@ -625,11 +647,11 @@ export default function ChatPage() {
           }
         } else {
           // Handle API error
-          addMessage('❌ Failed to process photo. Please try again.', 'system', 'system');
+          await addMessage('❌ Failed to process photo. Please try again.', 'system', 'system');
         }
       } catch (error) {
         console.error('Photo upload error:', error);
-        addMessage('❌ Error uploading photo. Please try again.', 'system', 'system');
+        await addMessage('❌ Error uploading photo. Please try again.', 'system', 'system');
       } finally {
         // Clear all loading indicators
         setIsAnalyzingImage(false);
@@ -665,7 +687,7 @@ export default function ChatPage() {
       await handleSendWithImage();
     } else {
       const userMessage = inputText.trim();
-      addMessage(userMessage, 'user', 'text', true);
+      await addMessage(userMessage, 'user', 'text', true);
       setInputText('');
       
       // Handle special commands
@@ -679,13 +701,13 @@ export default function ChatPage() {
         await handleGenerateWorkflow(roomType);
       } else if (userMessage.toLowerCase().includes('reset ai') || userMessage.toLowerCase().includes('🔄 reset ai')) {
         await handleResetContext();
-      } else if (userMessage.match(/\w+\s+(BEFORE|AFTER|DURING)/i)) {
-        const roomMatch = userMessage.match(/(\w+)\s+(BEFORE|AFTER|DURING)/i);
-        if (roomMatch) {
-          const roomName = roomMatch[1];
-          const photoType = roomMatch[2];
-          addMessage(`Perfect! I'm ready for the ${roomName} ${photoType} photo. Please upload a photo now by clicking the camera or paperclip icon.`, 'system', 'system');
-        }
+              } else if (userMessage.match(/\w+\s+(BEFORE|AFTER|DURING)/i)) {
+          const roomMatch = userMessage.match(/(\w+)\s+(BEFORE|AFTER|DURING)/i);
+          if (roomMatch) {
+            const roomName = roomMatch[1];
+            const photoType = roomMatch[2];
+            await addMessage(`Perfect! I'm ready for the ${roomName} ${photoType} photo. Please upload a photo now by clicking the camera or paperclip icon.`, 'system', 'system');
+          }
       } else {
         await generateAIResponse(userMessage);
       }
@@ -704,13 +726,13 @@ export default function ChatPage() {
     try {
       const response = await apiService.resetAIContext();
       if (response.success) {
-        addMessage('🔄 AI context has been reset. Ready for a fresh start!', 'system', 'system');
+        await addMessage('🔄 AI context has been reset. Ready for a fresh start!', 'system', 'system');
       } else {
-        addMessage('❌ Failed to reset AI context.', 'system', 'system');
+        await addMessage('❌ Failed to reset AI context.', 'system', 'system');
       }
     } catch (error) {
       console.error('Reset context error:', error);
-      addMessage('❌ Failed to reset AI context.', 'system', 'system');
+      await addMessage('❌ Failed to reset AI context.', 'system', 'system');
     }
   };
 
