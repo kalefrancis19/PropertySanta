@@ -90,6 +90,54 @@ class GeminiService {
     }
   }
 
+  // Restore context from task's chat history
+  async restoreContextFromHistory(taskId) {
+    try {
+      const task = await Task.findById(taskId);
+      if (!task || !task.chatHistory || task.chatHistory.length === 0) {
+        console.log(`No chat history found for task: ${taskId}`);
+        return false;
+      }
+
+      const context = this.getContext(taskId);
+      
+      // Restore chat history to AI context
+      context.chatHistory = task.chatHistory.map(chat => ({
+        message: chat.message,
+        sender: chat.sender,
+        timestamp: new Date(chat.timestamp)
+      }));
+
+      // Analyze chat history to restore workflow state
+      const hasBeforePhotos = task.chatHistory.some(chat => 
+        chat.type === 'photo' && chat.message.includes('before')
+      );
+      const hasAfterPhotos = task.chatHistory.some(chat => 
+        chat.type === 'photo' && chat.message.includes('after')
+      );
+
+      if (hasBeforePhotos) {
+        context.beforePhotosLogged = ['restored_from_history'];
+        context.workflowState = 'before_photos_requested';
+      }
+      if (hasAfterPhotos) {
+        context.afterPhotosLogged = ['restored_from_history'];
+        context.workflowState = 'after_photos_requested';
+      }
+
+      // Restore current property if available
+      if (task) {
+        context.currentProperty = task;
+      }
+
+      console.log(`Restored context from history for task: ${taskId}, ${context.chatHistory.length} messages`);
+      return true;
+    } catch (error) {
+      console.error('Error restoring context from history:', error);
+      return false;
+    }
+  }
+
   // Generate chat response with workflow management for a specific task
   async generateChatResponse(userMessage, taskId = null) {
     try {
@@ -153,6 +201,9 @@ class GeminiService {
     Property Details:
     ${currentProperty ? currentProperty.name : 'No property loaded'}
     
+    Special Requirements:
+    ${currentProperty?.specialRequirement ? currentProperty.specialRequirement : 'No special requirements'}
+    
     Room Tasks:
     ${currentProperty?.requirements?.map(rt => 
       `${rt.roomType}:\n` +
@@ -183,6 +234,8 @@ class GeminiService {
     - For casual conversation (goodbyes, thanks, greetings), respond naturally and warmly
     - For technical tasks, be professional but still friendly
     - Emphasize key manual requirements for each room
+    - ALWAYS consider and mention special requirements when relevant to the current task
+    - If special requirements exist, incorporate them into your guidance and responses
     - Remember what photos have been logged
     - Guide user step by step through the process
     - If user uploads duplicate photo, remind them politely
@@ -727,6 +780,12 @@ class GeminiService {
         `- ${task.description}${task.isCompleted ? ' (Completed)' : ''}`
       )
     ];
+
+    // Add special requirements if they exist
+    if (context.currentProperty.specialRequirement) {
+      requirementsList.push('', '⚠️ Special Requirements:');
+      requirementsList.push(`- ${context.currentProperty.specialRequirement}`);
+    }
 
     if (context.currentProperty.specialInstructions && context.currentProperty.specialInstructions.length > 0) {
       requirementsList.push('', 'Special Instructions:');
@@ -1514,7 +1573,8 @@ class GeminiService {
                 📖 Manual Overview:
                 ${property.manual.content}
 
-                I'm here to guide you through the cleaning process following the manual exactly. Let's start by taking BEFORE photos of each room. Which room would you like to start with?`;
+                ${property.specialRequirement ? `⚠️ Special Requirements:\n${property.specialRequirement}\n\n` : ''}
+                I'm here to guide you through the cleaning process following the manual exactly${property.specialRequirement ? ' and paying special attention to the requirements above' : ''}. Let's start by taking BEFORE photos of each room. Which room would you like to start with?`;
       } else {
         return "Welcome to PropertySanta! I'm your AI assistant focused on manual-based cleaning guidance. How can I help you with your cleaning tasks today?";
       }

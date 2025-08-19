@@ -192,6 +192,10 @@ class ApiService {
     return this.request(`/properties/${propertyId}`) as Promise<PropertyResponse>;
   }
 
+  async getChatHistory(taskId: string): Promise<ApiResponse<{ chatHistory: any[] }>> {
+    return this.request(`/ai/chat-history/${taskId}`);
+  }
+
   async updateRoomTaskStatus(propertyId: string, roomType: string, taskIndex: number, isCompleted: boolean): Promise<ApiResponse> {
     return this.request(`/tasks/property/${propertyId}/room-task`, {
       method: 'PATCH',
@@ -214,6 +218,7 @@ class ApiService {
     roomType?: string;
     completedTasks?: string[];
     manualTips?: string[];
+    skipChatHistory?: boolean;
   }): Promise<ApiResponse> {
     return this.request('/ai/chat', {
       method: 'POST',

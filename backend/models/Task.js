@@ -105,7 +105,26 @@ const Taskschema = new mongoose.Schema({
 
   aiFeedback: [aiFeedbackSchema],
 
-  chatHistory:String,
+  chatHistory: [{
+    message: {
+      type: String,
+      required: true
+    },
+    sender: {
+      type: String,
+      enum: ['user', 'system'],
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    type: {
+      type: String,
+      enum: ['text', 'photo', 'system'],
+      default: 'text'
+    }
+  }],
 
   isActive: {
     type: Boolean,

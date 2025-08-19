@@ -25,7 +25,7 @@ const getManualRequirementsForRoom = (property, roomType) => {
 // Chat with AI
 const chatWithAI = async (req, res) => {
   try {
-    const { message, propertyId, roomType, completedTasks, manualTips, taskId } = req.body;
+    const { message, propertyId, roomType, completedTasks, manualTips, taskId, skipChatHistory } = req.body;
     if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
 
     // Get the task ID - either from request body or find it from propertyId
@@ -47,15 +47,59 @@ const chatWithAI = async (req, res) => {
       const task = await Task.findById(currentTaskId);
       console.log(task,'------task-----------------')
       if (task) {
-        geminiService.updateContext({ 
-          currentProperty: task, 
-          workflowState: geminiService.getContext(currentTaskId).workflowState || 'initial' 
-        }, currentTaskId);
+        // Check if task has chat history and restore context
+        if (task.chatHistory && task.chatHistory.length > 0) {
+          console.log(`Restoring context from chat history for task: ${currentTaskId}`);
+          await geminiService.restoreContextFromHistory(currentTaskId);
+        } else {
+          // New task, set initial context
+          geminiService.updateContext({ 
+            currentProperty: task, 
+            workflowState: geminiService.getContext(currentTaskId).workflowState || 'initial' 
+          }, currentTaskId);
+        }
       }
     }
 
     const aiResponse = await geminiService.generateChatResponse(message, currentTaskId);
     const context = geminiService.getContext(currentTaskId);
+
+    // Save chat history to task (skip if flag is set)
+    if (currentTaskId && !skipChatHistory) {
+      try {
+        const task = await Task.findById(currentTaskId);
+        if (task) {
+          // Add user message and AI response to chat history
+          const chatMessages = [
+            {
+              message: message,
+              sender: 'user',
+              timestamp: new Date(),
+              type: 'text'
+            },
+            {
+              message: aiResponse,
+              sender: 'system',
+              timestamp: new Date(),
+              type: 'text'
+            }
+          ];
+
+          await Task.findByIdAndUpdate(
+            currentTaskId,
+            {
+              $push: {
+                chatHistory: { $each: chatMessages }
+              }
+            },
+            { new: true }
+          );
+        }
+      } catch (error) {
+        console.error('Error saving chat history:', error);
+        // Continue even if save fails - don't break the user flow
+      }
+    }
 
     res.json({
       success: true,
@@ -98,6 +142,34 @@ const handlePhotoUpload = async (req, res) => {
 
     const result = await geminiService.handlePhotoUpload(photoBase64, photoType, roomType, userMessage, currentTaskId);
     const context = geminiService.getContext(currentTaskId);
+
+    // Save photo upload to chat history
+    if (currentTaskId) {
+      try {
+        const task = await Task.findById(currentTaskId);
+        if (task) {
+          const chatMessage = {
+            message: `Uploaded ${photoType} photo for ${roomType}`,
+            sender: 'user',
+            timestamp: new Date(),
+            type: 'photo'
+          };
+
+          await Task.findByIdAndUpdate(
+            currentTaskId,
+            {
+              $push: {
+                chatHistory: chatMessage
+              }
+            },
+            { new: true }
+          );
+        }
+      } catch (error) {
+        console.error('Error saving photo upload to chat history:', error);
+        // Continue even if save fails
+      }
+    }
 
     res.json({ success: true, data: { ...result, workflowState: context.workflowState } });
   } catch (error) {
@@ -152,6 +224,35 @@ const analyzeBeforeAfterPhotos = async (req, res) => {
     }
 
     const analysis = await geminiService.analyzeBeforeAfterComparison(beforePhotoBase64, afterPhotoBase64, roomType, manualRequirements, currentTaskId);
+    
+    // Save AI analysis response to chat history
+    if (currentTaskId && analysis.message) {
+      try {
+        const task = await Task.findById(currentTaskId);
+        if (task) {
+          const chatMessage = {
+            message: analysis.message,
+            sender: 'system',
+            timestamp: new Date(),
+            type: 'text'
+          };
+
+          await Task.findByIdAndUpdate(
+            currentTaskId,
+            {
+              $push: {
+                chatHistory: chatMessage
+              }
+            },
+            { new: true }
+          );
+        }
+      } catch (error) {
+        console.error('Error saving analysis to chat history:', error);
+        // Continue even if save fails
+      }
+    }
+    
     res.json({ success: true, data: analysis });
   } catch (error) {
     console.error('Before/After analysis error:', error);
@@ -188,6 +289,35 @@ const analyzePhotoWithManual = async (req, res) => {
     }
 
     const analysis = await geminiService.analyzePhotoWithManual(photoBase64, photoType, roomType, manualRequirements);
+    
+    // Save AI analysis response to chat history
+    if (currentTaskId && analysis.message) {
+      try {
+        const task = await Task.findById(currentTaskId);
+        if (task) {
+          const chatMessage = {
+            message: analysis.message,
+            sender: 'system',
+            timestamp: new Date(),
+            type: 'text'
+          };
+
+          await Task.findByIdAndUpdate(
+            currentTaskId,
+            {
+              $push: {
+                chatHistory: chatMessage
+              }
+            },
+            { new: true }
+          );
+        }
+      } catch (error) {
+        console.error('Error saving analysis to chat history:', error);
+        // Continue even if save fails
+      }
+    }
+    
     res.json({ success: true, data: analysis });
   } catch (error) {
     console.error('Photo analysis error:', error);
@@ -233,6 +363,31 @@ const getWorkflowState = async (req, res) => {
   } catch (error) {
     console.error('Get workflow state error:', error);
     res.status(500).json({ success: false, message: 'Failed to get workflow state' });
+  }
+};
+
+// Get chat history for a task
+const getChatHistory = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    if (!taskId) {
+      return res.status(400).json({ success: false, message: 'Task ID is required' });
+    }
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ success: false, message: 'Task not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        chatHistory: task.chatHistory || []
+      }
+    });
+  } catch (error) {
+    console.error('Get chat history error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get chat history' });
   }
 };
 
@@ -347,6 +502,22 @@ const getManualRequirements = async (req, res) => {
     const { propertyId, roomType } = req.params;
     if (!propertyId || !roomType) return res.status(400).json({ success: false, message: 'Property ID and room type are required' });
 
+    // First try to find a task for this property
+    const task = await Task.findOne({ propertyId: propertyId });
+    if (task) {
+      const roomRequirement = task.requirements.find(rt => rt.roomType.toLowerCase() === roomType.toLowerCase());
+      if (roomRequirement) {
+        const response = {
+          roomType: roomRequirement.roomType,
+          tasks: roomRequirement.tasks,
+          isCompleted: roomRequirement.isCompleted,
+          specialRequirement: task.specialRequirement
+        };
+        return res.json({ success: true, data: response });
+      }
+    }
+
+    // Fallback to property if no task found
     const property = await Property.findById(propertyId);
     if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
 
@@ -382,6 +553,7 @@ module.exports = {
   analyzePhotoWithManual,
   generateWorkflowGuidance,
   getWorkflowState,
+  getChatHistory,
   resetWorkflow,
   updateWorkflowProgress,
   updateContext,

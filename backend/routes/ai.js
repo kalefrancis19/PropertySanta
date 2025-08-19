@@ -16,6 +16,7 @@ router.post('/update-workflow-progress', auth, aiController.updateWorkflowProgre
 router.post('/reset-workflow', auth, aiController.resetWorkflow);
 router.get('/workflow-state/:propertyId', auth, aiController.getWorkflowState);
 router.get('/manual-requirements/:propertyId/:roomType', auth, aiController.getManualRequirements);
+router.get('/chat-history/:taskId', auth, aiController.getChatHistory);
 router.post('/reset-context', aiController.resetAIContext); // reset AI context
 router.post('/test-text-analysis', aiController.testTextAnalysis);
 router.post('/test-photo-upload', aiController.handlePhotoUpload); // test endpoint without auth

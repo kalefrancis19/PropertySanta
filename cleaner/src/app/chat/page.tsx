@@ -123,31 +123,36 @@ export default function ChatPage() {
           if (response.success && !cancelled) {
             setCurrentProperty(response.property);
             setIsTyping(true);
-            // Get AI-generated welcome message from backend
-            const aiResponse = await apiService.chatWithAI({
-              message: "Generate a welcome message for this property",
-              propertyId: response.property.propertyId,
-              taskId: taskId
-            });
-            if (aiResponse.success && !cancelled) {
-              setMessages([{
-                id: '1',
-                text: aiResponse.data.message,
-                sender: 'system',
-                timestamp: new Date(),
-                type: 'system'
-              }]);
-              messageSet = true;
-            } else if (!cancelled) {
-              // Fallback welcome message
-              setMessages([{
-                id: '1',
-                text: `Welcome to ${response.property.name}! pls check network connection and try again`,
-                sender: 'system',
-                timestamp: new Date(),
-                type: 'system'
-              }]);
-              messageSet = true;
+
+            // Check if task is in progress and load chat history
+            if (taskId) {
+              try {
+                const chatHistoryResponse = await apiService.getChatHistory(taskId);
+                if (chatHistoryResponse.success && chatHistoryResponse.data?.chatHistory?.length > 0) {
+                  // Convert database chat history to frontend format
+                  const historyMessages: ChatMessage[] = chatHistoryResponse.data.chatHistory.map((chat: any, index: number) => ({
+                    id: `history-${index}`,
+                    text: chat.message,
+                    sender: chat.sender as 'user' | 'system',
+                    timestamp: new Date(chat.timestamp),
+                    type: chat.type || 'text'
+                  }));
+                  
+                  setMessages(historyMessages);
+                  messageSet = true;
+                  console.log('Loaded chat history:', historyMessages.length, 'messages');
+                } else {
+                  // No chat history, generate welcome message
+                  await generateWelcomeMessage(response.property);
+                }
+              } catch (error) {
+                console.error('Error loading chat history:', error);
+                // Fallback to welcome message
+                await generateWelcomeMessage(response.property);
+              }
+            } else {
+              // No taskId, generate welcome message
+              await generateWelcomeMessage(response.property);
             }
           }
         } catch (error) {
@@ -178,6 +183,52 @@ export default function ChatPage() {
         setIsInitialLoading(false);
         welcomeMessageLoadedRef.current = true;
         messageSet = true;
+      }
+    };
+
+    const generateWelcomeMessage = async (property: any) => {
+      if (cancelled) return;
+      
+      try {
+        // Get AI-generated welcome message from backend without saving to chat history
+        const aiResponse = await apiService.chatWithAI({
+          message: "Generate a welcome message for this property",
+          propertyId: property.propertyId,
+          taskId: taskId,
+          skipChatHistory: true // Add flag to skip saving to chat history
+        });
+        if (aiResponse.success && !cancelled) {
+          setMessages([{
+            id: '1',
+            text: aiResponse.data.message,
+            sender: 'system',
+            timestamp: new Date(),
+            type: 'system'
+          }]);
+          messageSet = true;
+        } else if (!cancelled) {
+          // Fallback welcome message
+          setMessages([{
+            id: '1',
+            text: `Welcome to ${property.name}! pls check network connection and try again`,
+            sender: 'system',
+            timestamp: new Date(),
+            type: 'system'
+          }]);
+          messageSet = true;
+        }
+      } catch (error) {
+        console.error('Error generating welcome message:', error);
+        if (!cancelled) {
+          setMessages([{
+            id: '1',
+            text: `Welcome to ${property.name}! I'm your AI assistant. How can I help you today?`,
+            sender: 'system',
+            timestamp: new Date(),
+            type: 'system'
+          }]);
+          messageSet = true;
+        }
       }
     };
 
