@@ -16,15 +16,11 @@ type CreateTaskRequest = BaseCreateTaskRequest & {
 import { format } from 'date-fns';
 import { Plus, Search, Calendar, User, Trash2, Edit, Building } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
+import { toast } from 'sonner';
 
-// Simple toast notification hook
+// Use the imported toast from sonner
 const useToast = () => {
-  const showToast = (options: { title: string; description: string; variant?: 'default' | 'destructive' }) => {
-    // This is a simple implementation - in a real app, you'd want to use a proper toast library
-    console[options.variant === 'destructive' ? 'error' : 'log'](options.title, options.description);
-    alert(`${options.title}: ${options.description}`);
-  };
-  return { toast: showToast };
+  return { toast };
 };
 
 // Simple button component
@@ -474,9 +470,53 @@ export default function TasksPage() {
 
   // Delete task
   const deleteTask = async (taskId: string) => {
-    if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
-      return;
-    }
+    const confirmed = await new Promise<boolean>((resolve) => {
+      // Create a custom confirmation dialog
+      const dialog = document.createElement('div');
+      dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      dialog.innerHTML = `
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+          <div class="flex items-center space-x-3 mb-4">
+            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Delete Task</h3>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to delete this task? This action cannot be undone.</p>
+          <div class="flex space-x-3">
+            <button id="cancel-btn" class="flex-1 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors">
+              Cancel
+            </button>
+            <button id="delete-btn" class="flex-1 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors">
+              Delete
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(dialog);
+      
+      const cancelBtn = dialog.querySelector('#cancel-btn');
+      const deleteBtn = dialog.querySelector('#delete-btn');
+      
+      const cleanup = () => {
+        document.body.removeChild(dialog);
+      };
+      
+      cancelBtn?.addEventListener('click', () => {
+        cleanup();
+        resolve(false);
+      });
+      
+      deleteBtn?.addEventListener('click', () => {
+        cleanup();
+        resolve(true);
+      });
+    });
+
+    if (!confirmed) return;
     
     try {
       await taskAPI.delete(taskId);

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '../components/AuthProvider'
+import { Toaster } from 'sonner'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -36,6 +37,7 @@ export default function RootLayout({
           <div className="max-w-md mx-auto min-h-screen bg-white shadow-lg">
             {children}
           </div>
+          <Toaster richColors position="top-center" />
         </AuthProvider>
       </body>
     </html>

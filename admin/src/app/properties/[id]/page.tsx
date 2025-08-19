@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { propertyAPI, Property } from '@/services/api';
+import { propertyAPI, Property, userAPI, User } from '@/services/api';
 import { ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -12,7 +12,7 @@ import Link from 'next/link';
 interface Task {
   description: string;
   Regular?: string;
-  isCompleted?: boolean;
+  isCompleted: boolean;
 }
 
 interface RoomTask {
@@ -41,6 +41,8 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
 
   const [property, setProperty] = useState<PropertyWithoutExtra | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<User[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [formData, setFormData] = useState<FormData & { customer: string }>({
     name: '',
     propertyId: '',
@@ -56,6 +58,20 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
   const [newRoomType, setNewRoomType] = useState('');
   const [newTask, setNewTask] = useState<Pick<Task, 'description'>>({ description: '' });
 
+  // Fetch customers
+  const fetchCustomers = async () => {
+    try {
+      setLoadingCustomers(true);
+      const users = await userAPI.getAll();
+      const customerUsers = users.filter(user => user.role === 'customer');
+      setCustomers(customerUsers);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      toast.error('Failed to fetch customers');
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProperty = async () => {
@@ -74,7 +90,7 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
           tasks: (room.tasks || []).map(task => ({
             description: task.description,
             Regular: task.Regular || '',
-            isCompleted: task.isCompleted || false
+            isCompleted: task.isCompleted === true
           }))
         }));
 
@@ -91,7 +107,7 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
           squareFootage: data.squareFootage?.toString() || '0',
           cycle: data.cycle || '',
           isActive: data.isActive !== undefined ? data.isActive : true,
-          customer: typeof data.customer === 'string' ? data.customer : data.customer?._id || '',
+          customer: typeof data.customer === 'string' ? data.customer : (data.customer as any)?._id || '',
           roomTasks: roomTasksTransformed
         });
       } catch (error: any) {
@@ -103,6 +119,7 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
     };
 
     fetchProperty();
+    fetchCustomers();
   }, [id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -349,15 +366,25 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
             {/* Customer ID */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Customer ID
+                Customer
               </label>
-              <input
-                type="text"
-                value={formData.customer}
-                onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                placeholder="Enter customer ID"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
+                              <select
+                  value={formData.customer}
+                  onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={loadingCustomers}
+                >
+                  <option value="">Select a customer</option>
+                  {loadingCustomers ? (
+                    <option value="">Loading customers...</option>
+                  ) : (
+                    customers.map((customer: User) => (
+                      <option key={customer._id} value={customer._id}>
+                        {customer.name} ({customer.email})
+                      </option>
+                    ))
+                  )}
+                </select>
             </div>
 
             {/* Active Status */}

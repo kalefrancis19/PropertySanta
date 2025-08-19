@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface UserProfile {
   name: string;
@@ -80,7 +81,7 @@ export default function SettingsPage() {
                 )}
               </button>
               <button 
-                onClick={() => alert('Please contact support to update your profile information.')}
+                onClick={() => toast.info('Please contact support to update your profile information.')}
                 className="bg-gradient-to-r from-primary-600 to-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-primary-700 hover:to-blue-700 flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"
               >
                 <Save className="h-4 w-4" />

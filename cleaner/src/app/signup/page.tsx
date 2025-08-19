@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../components/AuthProvider';
+import { toast } from 'sonner';
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
@@ -62,10 +63,10 @@ export default function SignUpPage() {
         phone: formData.phone || undefined
       });
 
-      alert('Account created successfully! Please log in.');
+      toast.success('Account created successfully! Please log in.');
       router.push('/');
     } catch (error: any) {
-      alert(error.message || 'Sign up failed. Please try again.');
+      toast.error(error.message || 'Sign up failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

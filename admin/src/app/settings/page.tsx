@@ -19,6 +19,7 @@ import {
 import { useTheme } from '@/components/ThemeProvider';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -66,26 +67,26 @@ export default function SettingsPage() {
       // Save profile changes
       console.log('Saving profile changes:', profileData);
       // TODO: Implement API call to update user profile
-      alert('Profile updated successfully!');
+      toast.success('Profile updated successfully!');
     } else if (activeTab === 'security') {
       // Save password changes
       if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
-        alert('Please fill in all password fields');
+        toast.error('Please fill in all password fields');
         return;
       }
       if (passwordData.newPassword !== passwordData.confirmPassword) {
-        alert('New passwords do not match');
+        toast.error('New passwords do not match');
         return;
       }
       console.log('Saving password changes:', passwordData);
       // TODO: Implement API call to change password
-      alert('Password updated successfully!');
+      toast.success('Password updated successfully!');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } else if (activeTab === 'notifications') {
       // Save notification preferences
       console.log('Saving notification preferences:', notifications);
       // TODO: Implement API call to update notification preferences
-      alert('Notification preferences updated successfully!');
+      toast.success('Notification preferences updated successfully!');
     }
   };
 

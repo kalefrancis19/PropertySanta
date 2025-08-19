@@ -3,6 +3,7 @@
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
+import { Toaster } from 'sonner';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       >
         <NotificationProvider>
           {children}
+          <Toaster richColors position="top-center" />
         </NotificationProvider>
       </ThemeProvider>
     </AuthProvider>

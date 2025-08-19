@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -29,6 +30,50 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { logout, user } = useAuth();
+
+  const handleLogout = async () => {
+    const confirmed = await new Promise<boolean>((resolve) => {
+      toast.custom((t) => (
+        <div className="flex flex-col space-y-3 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-2">
+            <div className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <span className="font-semibold text-gray-900 dark:text-white">Confirm Logout</span>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-300">Are you sure you want to logout from your account?</p>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => {
+                toast.dismiss(t);
+                resolve(false);
+              }}
+              className="flex-1 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t);
+                resolve(true);
+              }}
+              className="flex-1 px-3 py-1.5 text-sm bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      ), {
+        duration: Infinity,
+      });
+    });
+
+    if (confirmed) {
+      logout();
+    }
+  };
   const [activeSection, setActiveSection] = useState(() => {
     if (pathname === '/') return 'overview';
     if (pathname === '/properties') return 'properties';
@@ -121,7 +166,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             
             <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
               <button 
-                onClick={logout}
+                onClick={handleLogout}
                 className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors w-full"
               >
                 <LogOut className="h-5 w-5" />
