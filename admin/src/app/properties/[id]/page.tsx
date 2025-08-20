@@ -83,7 +83,11 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
 
       try {
         const data = await propertyAPI.getById(id);
-        if (!data) throw new Error('No data returned from API');
+        if (!data) {
+          toast.error('Property not found');
+          router.push('/properties');
+          return;
+        }
 
         const roomTasksTransformed: RoomTask[] = (data.roomTasks || []).map(room => ({
           roomType: room.roomType,

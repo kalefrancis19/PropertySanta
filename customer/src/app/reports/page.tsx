@@ -130,23 +130,10 @@ export default function ReportsPage() {
         const tasksData = await taskAPI.getAll();
         setTasks(tasksData);
 
-        // 2. Collect unique property IDs
-        const propertyIds = Array.from(new Set(
-          tasksData
-            .map(task => task.propertyId)
-            .filter(Boolean)
-        )) as string[];
-
-        // 3. Fetch properties
-        const propertiesResponse = propertyIds.length > 0 
-          ? await Promise.all(propertyIds.map(id => 
-              propertyAPI.getById(id).catch(() => null)
-            ))
-          : [];
-
-        // 4. Convert properties array to record for easy lookup
-        const propertiesRecord = propertiesResponse.reduce((acc: Record<string, any>, property) => {
-          if (property) acc[property._id] = property;
+        // 2. Fetch all properties and create a lookup map
+        const allProperties = await propertyAPI.getAll();
+        const propertiesRecord = allProperties.reduce((acc: Record<string, any>, property) => {
+          acc[property._id] = property;
           return acc;
         }, {});
 

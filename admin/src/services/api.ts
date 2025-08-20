@@ -47,7 +47,14 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('Response error:', error.response?.status, error.config?.url, error.message);
+    // Don't log 404 errors for property endpoints as they're handled gracefully
+    const isProperty404 = error.response?.status === 404 && 
+                         error.config?.url && 
+                         error.config.url.includes('/properties/');
+    
+    if (!isProperty404) {
+      console.error('Response error:', error.response?.status, error.config?.url, error.message);
+    }
     
     // Handle 401 Unauthorized errors
     if (error.response?.status === 401) {
@@ -144,11 +151,15 @@ export const propertyAPI = {
   },
 
   // Get property by ID
-  getById: async (id: string): Promise<Property> => {
+  getById: async (id: string): Promise<Property | null> => {
     try {
       const response = await api.get(`/properties/${id}`);
       return response.data.property;
     } catch (error) {
+      // Return null for 404 errors (property not found) instead of throwing
+      if (error.response?.status === 404) {
+        return null;
+      }
       console.error('Error fetching property:', error);
       throw error;
     }
