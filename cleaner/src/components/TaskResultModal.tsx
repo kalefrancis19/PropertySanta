@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Star, Clock, MapPin, Building, FileText, Calendar } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Star, Clock, MapPin, Building, FileText, Calendar, MessageCircle } from 'lucide-react';
 import { apiService } from '../services/apiService';
+import ChatHistory from './ChatHistory';
 
 interface TaskResultModalProps {
   isOpen: boolean;
@@ -95,6 +96,7 @@ export default function TaskResultModal({
   const [issues, setIssues] = useState<Issue[]>([]);
   const [aiFeedback, setAiFeedback] = useState<AIFeedback[]>([]);
   const [error, setError] = useState('');
+  const [showChatHistory, setShowChatHistory] = useState(false);
 
   useEffect(() => {
     if (isOpen && taskId) {
@@ -202,12 +204,21 @@ export default function TaskResultModal({
               {propertyName} • {propertyAddress}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-          >
-            <X className="w-6 h-6 text-gray-500" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowChatHistory(true)}
+              className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              title="View Chat History"
+            >
+              <MessageCircle className="h-5 w-5" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -676,6 +687,13 @@ export default function TaskResultModal({
           </button>
         </div>
       </div>
+
+      {/* Chat History Modal */}
+      <ChatHistory
+        taskId={taskId}
+        isOpen={showChatHistory}
+        onClose={() => setShowChatHistory(false)}
+      />
     </div>
   );
 }
