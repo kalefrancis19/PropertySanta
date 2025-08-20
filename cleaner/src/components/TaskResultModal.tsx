@@ -530,65 +530,72 @@ export default function TaskResultModal({
                 </div>
               )}
 
-              {/* Issues Section */}
-              {issues.length > 0 && (
-                <div className="bg-white dark:bg-gray-700 rounded-2xl p-6 border border-gray-200 dark:border-gray-600">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                    Issues Found ({issues.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {issues.map((issue) => (
-                      <div key={issue._id} className={`p-4 rounded-lg border-l-4 ${
-                        issue.isResolved 
-                          ? 'bg-green-50 dark:bg-green-900/20 border-green-500' 
-                          : 'bg-red-50 dark:bg-red-900/20 border-red-500'
-                      }`}>
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3">
-                            {getIssueIcon(issue.type)}
-                            <div>
-                              <h4 className="font-semibold text-gray-900 dark:text-white capitalize">
-                                {issue.type}
-                              </h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-300">
-                                {issue.description}
-                              </p>
-                              {issue.location && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Location: {issue.location}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            {issue.isResolved ? (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <AlertCircle className="w-4 h-4 text-red-500" />
-                            )}
-                            <span className={`text-xs font-medium ${
-                              issue.isResolved ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {issue.isResolved ? 'Resolved' : 'Open'}
-                            </span>
+              {/* Issues Section - Only Missed Requirements Grouped by Room */}
+              {(() => {
+                const missedRequirements = issues.filter(issue => issue.type === 'missed_requirement');
+                const issuesByRoom = missedRequirements.reduce((acc, issue) => {
+                  const room = issue.location || 'Unknown Room';
+                  if (!acc[room]) {
+                    acc[room] = [];
+                  }
+                  acc[room].push(issue);
+                  return acc;
+                }, {} as Record<string, Issue[]>);
+
+                const roomNames = Object.keys(issuesByRoom);
+                
+                return roomNames.length > 0 ? (
+                  <div className="bg-white dark:bg-gray-700 rounded-2xl p-6 border border-gray-200 dark:border-gray-600">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                      Missed Requirements by Room ({missedRequirements.length})
+                    </h3>
+                    <div className="space-y-4">
+                      {roomNames.map((roomName) => (
+                        <div key={roomName} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                          <h4 className="font-semibold text-gray-900 dark:text-white mb-3 capitalize">
+                            {roomName}
+                          </h4>
+                          <div className="space-y-2">
+                            {issuesByRoom[roomName].map((issue) => (
+                              <div key={issue._id} className="flex items-start space-x-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
+                                <div className="flex-1">
+                                  <p className="text-sm text-red-800 dark:text-red-200">
+                                    {issue.description}
+                                  </p>
+                                  {issue.notes && (
+                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                      Notes: {issue.notes}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                                    <span>Reported: {formatDate(issue.createdAt)}</span>
+                                    {issue.isResolved && issue.resolvedAt && (
+                                      <span>Resolved: {formatDate(issue.resolvedAt)}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  {issue.isResolved ? (
+                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                  ) : (
+                                    <AlertCircle className="w-4 h-4 text-red-500" />
+                                  )}
+                                  <span className={`text-xs font-medium ${
+                                    issue.isResolved ? 'text-green-600' : 'text-red-600'
+                                  }`}>
+                                    {issue.isResolved ? 'Resolved' : 'Open'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        {issue.notes && (
-                          <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                            Notes: {issue.notes}
-                          </p>
-                        )}
-                        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                          <span>Reported: {formatDate(issue.createdAt)}</span>
-                          {issue.resolvedAt && (
-                            <span>Resolved: {formatDate(issue.resolvedAt)}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                ) : null;
+              })()}
 
               {/* AI Feedback Section */}
               {aiFeedback.length > 0 && (
