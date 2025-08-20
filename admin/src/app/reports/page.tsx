@@ -222,6 +222,7 @@ export default function ReportsPage() {
               score, // Store the original percentage (0-100)
               feedback: fb.feedback || '',
               suggestions: fb.suggestions || [],
+              improvements: fb.improvements || [],
               confidence: fb.confidence || 0
             };
           }
@@ -272,7 +273,7 @@ export default function ReportsPage() {
         photos: task.photos?.length || 0,
         uploadedPhotos: task.photos || [],
         rooms: requirements.map(req => req.roomType).filter(Boolean) as string[],
-        issues: (task.issues || []).map(issue => 
+        issues: (task.issues || []).filter(issue => issue.type === 'missed_requirement').map(issue => 
           `${issue.location ? `In ${issue.location}, ` : ''}${issue.type ? `${issue.type}: ` : ''}${issue.description}`
         ),
         roomFeedbacks,
@@ -463,26 +464,14 @@ export default function ReportsPage() {
                                       {feedback.roomType} - {Math.round(feedback.score)}%{/* Ensure we show whole number percentage */}
                                     </h4>
                                   </div>
-                                  {feedback.improvements?.length > 0 && (
+                                  {feedback.improvements && feedback.improvements.length > 0 && (
                                     <div className="mt-3">
                                       <h5 className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
-                                        Improvements:
+                                        improvements:
                                       </h5>
                                       <ul className="list-disc list-inside text-sm text-green-700 dark:text-green-300 space-y-1">
                                         {feedback.improvements.map((improvement, idx) => (
                                           <li key={idx}>{improvement}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-                                  {feedback.suggestions.length > 0 && (
-                                    <div className="mt-3">
-                                      <h5 className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
-                                        Suggestions for improvement:
-                                      </h5>
-                                      <ul className="list-disc list-inside text-sm text-green-700 dark:text-green-300 space-y-1">
-                                        {feedback.suggestions.map((suggestion, idx) => (
-                                          <li key={idx}>{suggestion}</li>
                                         ))}
                                       </ul>
                                     </div>
@@ -522,7 +511,7 @@ export default function ReportsPage() {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Photos</h3>
 
                         <div className="grid grid-cols-2 gap-4">
-                          {selectedReport.uploadedPhotos.map((photo, index) => (
+                          {selectedReport.uploadedPhotos?.map((photo, index) => (
                             <div
                               key={index}
                               className="relative group bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden"

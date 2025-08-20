@@ -224,8 +224,6 @@ export default function EditPropertyPage({ params }: { params: Promise<{ id: str
     setFormData(prev => ({ ...prev, roomTasks: updatedRooms }));
   };
 
-
-
   if (loading) {
     return (
       <ProtectedRoute>
