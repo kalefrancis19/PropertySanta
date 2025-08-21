@@ -6,13 +6,13 @@
     "cleaningworkflowapp": {
       "hosting": {
         "admin": [
-          "cleaningworkflowapp-admin"
+          "cleaningworkflowapp-admin-site"
         ],
         "customer": [
-          "cleaningworkflowapp-customer"
+          "cleaningworkflowapp-customer-site"
         ],
         "cleaner": [
-          "cleaningworkflowapp-cleaner"
+          "cleaningworkflowapp-cleaner-site"
         ]
       }
     }
