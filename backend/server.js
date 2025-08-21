@@ -95,10 +95,11 @@ const findAvailablePort = async (startPort) => {
 const updateFrontendEnv = (port) => {
   const apiUrl = `http://localhost:${port}/api`;
   
-  // Update both frontend environment files
+  // Update all frontend environment files
   const frontendPaths = [
     path.join(__dirname, '..', 'cleaner', '.env.local'), // Cleaner App
-    path.join(__dirname, '..', 'admin', '.env.local')   // Admin App
+    path.join(__dirname, '..', 'admin', '.env.local'),   // Admin App
+    path.join(__dirname, '..', 'customer', '.env.local') // Customer App
   ];
 
   frontendPaths.forEach((envPath) => {

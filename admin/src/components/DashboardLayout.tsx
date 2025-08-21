@@ -74,17 +74,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       logout();
     }
   };
-  const [activeSection, setActiveSection] = useState(() => {
-    if (pathname === '/') return 'overview';
-    if (pathname === '/properties') return 'properties';
-    if (pathname === '/users') return 'users';
-    if (pathname === '/tasks') return 'tasks';
-    if (pathname === '/reports') return 'reports';
-    if (pathname === '/messages') return 'messages';
-    if (pathname === '/orders') return 'orders';
-    if (pathname === '/settings') return 'settings';
-    return 'overview';
-  });
+  // Remove the activeSection state since we'll use pathname directly
 
   const navigationItems = [
     { id: 'overview', name: 'Dashboard', icon: BarChart3, href: '/' },
@@ -145,17 +135,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="space-y-2">
               {navigationItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeSection === item.id;
+                const isActive = pathname === item.href || (pathname === '/' && item.href === '/') || (pathname.startsWith(item.href) && item.href !== '/');
                 return (
                   <Link
                     key={item.id}
                     href={item.href}
                     className={`flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-l-4 border-blue-500'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
-                    onClick={() => setActiveSection(item.id)}
                   >
                     <Icon className="h-5 w-5" />
                     <span>{item.name}</span>

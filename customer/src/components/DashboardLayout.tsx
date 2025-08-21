@@ -107,6 +107,39 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return 'overview';
   });
 
+  // Update activeSection when pathname changes
+  useEffect(() => {
+    console.log('Pathname changed to:', pathname);
+    if (pathname === '/') {
+      console.log('Setting activeSection to overview');
+      setActiveSection('overview');
+    }
+    else if (pathname === '/properties') {
+      console.log('Setting activeSection to properties');
+      setActiveSection('properties');
+    }
+    else if (pathname === '/tasks') {
+      console.log('Setting activeSection to tasks');
+      setActiveSection('tasks');
+    }
+    else if (pathname === '/reports') {
+      console.log('Setting activeSection to reports');
+      setActiveSection('reports');
+    }
+    else if (pathname === '/messages') {
+      console.log('Setting activeSection to messages');
+      setActiveSection('messages');
+    }
+    else if (pathname === '/orders') {
+      console.log('Setting activeSection to orders');
+      setActiveSection('orders');
+    }
+    else if (pathname === '/settings') {
+      console.log('Setting activeSection to settings');
+      setActiveSection('settings');
+    }
+  }, [pathname]);
+
   const navigationItems = [
     { id: 'overview', name: 'Dashboard', icon: BarChart3, href: '/' },
     { id: 'properties', name: 'My Properties', icon: Home, href: '/properties' },
@@ -196,17 +229,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="space-y-2">
               {navigationItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeSection === item.id;
+                const isActive = pathname === item.href || (pathname === '/' && item.href === '/') || (pathname.startsWith(item.href) && item.href !== '/');
+                console.log(`Navigation: ${item.name}, pathname: "${pathname}", href: "${item.href}", isActive: ${isActive}`);
                 return (
                   <Link
                     key={item.id}
                     href={item.href}
                     className={`flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-l-4 border-blue-500'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
-                    onClick={() => setActiveSection(item.id)}
                   >
                     <Icon className="h-5 w-5" />
                     <span>{item.name}</span>
