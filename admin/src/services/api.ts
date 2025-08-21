@@ -79,7 +79,7 @@ export interface Property {
   propertyId: string;
   name: string;
   address: string;
-  type: 'apartment' | 'house' | 'office';
+  type: string;
   squareFootage: number;
   cycle?: string;
   isActive: boolean;
@@ -101,7 +101,7 @@ export interface CreatePropertyRequest {
   propertyId: string;
   name: string;
   address: string;
-  type: 'apartment' | 'house' | 'office';
+  type: string;
   squareFootage: number;
   cycle?: string;
   isActive?: boolean;
@@ -121,7 +121,7 @@ export interface UpdatePropertyRequest {
   name?: string;
   propertyId?: string;
   address?: string;
-  type?: 'apartment' | 'house' | 'office';
+  type?: string;
   squareFootage?: number;
   cycle?: string;
   customer?: string;  

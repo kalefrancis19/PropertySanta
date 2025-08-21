@@ -125,13 +125,25 @@ export default function PropertiesPage() {
     }
   };
 
-  const handleManualEdit = (property: Property) => {
+  const handleManualEdit = async (property: Property) => {
     setSelectedProperty(property);
-    setEditingManual({
-      title: property.manual?.title || 'Live Cleaning & Maintenance Manual',
-      content: property.manual?.content || ''
-    });
     setShowManualModal(true);
+    
+    try {
+      // Fetch the manual data for this property
+      const manualData = await propertyAPI.getManual(property._id!);
+      setEditingManual({
+        title: manualData.title || 'Live Cleaning & Maintenance Manual',
+        content: manualData.content || ''
+      });
+    } catch (error) {
+      console.error('Error fetching manual:', error);
+      // Set default values if manual doesn't exist
+      setEditingManual({
+        title: 'Live Cleaning & Maintenance Manual',
+        content: ''
+      });
+    }
   };
 
   const handleManualSave = async () => {
@@ -246,7 +258,7 @@ export default function PropertiesPage() {
                 </button>
                 <div className="flex items-center space-x-2">
                   <Link 
-                    href={`/properties/${property._id}`}
+                    href={`/properties/edit?id=${property._id}`}
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
                     <Edit className="h-4 w-4" />
@@ -304,6 +316,56 @@ export default function PropertiesPage() {
   );
 }
 
+function ManualEditModal({ manual, onClose, onSave, onChange }: { 
+  manual: { title: string; content: string }; 
+  onClose: () => void; 
+  onSave: () => void;
+  onChange: (manual: { title: string; content: string }) => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Edit Cleaning Manual</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+            <input
+              type="text"
+              value={manual.title}
+              onChange={(e) => onChange({ ...manual, title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Content</label>
+            <textarea
+              value={manual.content}
+              onChange={(e) => onChange({ ...manual, content: e.target.value })}
+              rows={15}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              placeholder="Enter cleaning instructions, special requirements, and maintenance notes..."
+            />
+          </div>
+        </div>
+        <div className="flex justify-end space-x-3 pt-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg"
+          >
+            Save Manual
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Simplified AddPropertyModal: no customer select, auto-assigns currentUser
 function AddPropertyModal({ 
   onClose, 
@@ -318,7 +380,7 @@ function AddPropertyModal({
     propertyId: '',
     name: '',
     address: '',
-    type: '',
+    type: 'apartment' as 'apartment' | 'house' | 'office',
     squareFootage: '',
     cycle: '',
     isActive: false,
@@ -375,13 +437,15 @@ function AddPropertyModal({
             required
           />
           <div className="grid grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="Type"
+            <select
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as 'apartment' | 'house' | 'office' })}
               className="w-full px-3 py-2 border rounded-lg"
-            />
+            >
+              <option value="apartment">Apartment</option>
+              <option value="house">House</option>
+              <option value="office">Office</option>
+            </select>
             <input
               type="number"
               placeholder="Square Footage"

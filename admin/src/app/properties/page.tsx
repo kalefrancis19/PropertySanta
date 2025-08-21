@@ -131,13 +131,25 @@ export default function PropertiesPage() {
     }
   };
 
-  const handleManualEdit = (property: Property) => {
+  const handleManualEdit = async (property: Property) => {
     setSelectedProperty(property);
-    setEditingManual({
-      title: property.manual?.title || 'Live Cleaning & Maintenance Manual',
-      content: property.manual?.content || ''
-    });
     setShowManualModal(true);
+    
+    try {
+      // Fetch the manual data for this property
+      const manualData = await propertyAPI.getManual(property._id!);
+      setEditingManual({
+        title: manualData.title || 'Live Cleaning & Maintenance Manual',
+        content: manualData.content || ''
+      });
+    } catch (error) {
+      console.error('Error fetching manual:', error);
+      // Set default values if manual doesn't exist
+      setEditingManual({
+        title: 'Live Cleaning & Maintenance Manual',
+        content: ''
+      });
+    }
   };
 
   const handleManualSave = async () => {
@@ -260,7 +272,7 @@ export default function PropertiesPage() {
                 </button>
                 <div className="flex items-center space-x-2">
                   <Link 
-                    href={`/properties/${property._id}`}
+                    href={`/properties/edit?id=${property._id}`}
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
                     <Edit className="h-4 w-4" />
