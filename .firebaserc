@@ -1,0 +1,21 @@
+{
+  "projects": {
+    "default": "cleaningworkflowapp"
+  },
+  "targets": {
+    "cleaningworkflowapp": {
+      "hosting": {
+        "admin": [
+          "cleaningworkflowapp-admin"
+        ],
+        "customer": [
+          "cleaningworkflowapp-customer"
+        ],
+        "cleaner": [
+          "cleaningworkflowapp-cleaner"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
