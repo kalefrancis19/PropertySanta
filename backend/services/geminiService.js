@@ -4,7 +4,10 @@ const Task = require('../models/Task');
 
 class GeminiService {
   constructor() {
-    const API_KEY = 'AIzaSyDRUvyiwRgV4q86sRAei8U50Pc9UgZTzcM';
+    const API_KEY = process.env.GEMINI_API_KEY;
+    if (!API_KEY) {
+      throw new Error('GEMINI_API_KEY environment variable is required');
+    }
     this.genAI = new GoogleGenerativeAI(API_KEY);
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     this.useEnhancedMockData = false;
