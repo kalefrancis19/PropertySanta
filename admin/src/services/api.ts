@@ -83,7 +83,11 @@ export interface Property {
   squareFootage: number;
   cycle?: string;
   isActive: boolean;
-  customer?: string;
+  customer?: string | {
+    _id: string;
+    name: string;
+    email: string;
+  };
   roomTasks: Array<{
     roomType: string;
     isCompleted?: boolean;
@@ -155,7 +159,7 @@ export const propertyAPI = {
     try {
       const response = await api.get(`/properties/${id}`);
       return response.data.property;
-    } catch (error) {
+    } catch (error: any) {
       // Return null for 404 errors (property not found) instead of throwing
       if (error.response?.status === 404) {
         return null;

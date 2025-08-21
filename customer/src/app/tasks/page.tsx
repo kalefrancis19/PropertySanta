@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, forwardRef } from 'react';
+import { useState, useEffect, forwardRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { taskAPI, type Task, type CreateTaskRequest as BaseCreateTaskRequest, type UpdateTaskRequest, userAPI, propertyAPI, type Property } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -101,7 +101,7 @@ const Select = ({
       <select
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
-        className={`block w-full rounded-md border border-gray-200 dark:border-gray-600 py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${!value ? 'text-gray-400 dark:text-gray-500' : ''}`}
+        className={`block w-full rounded-md border border-gray-200 dark:border-gray-600 py-2 pl-3 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${!value ? 'text-gray-400 dark:text-gray-500' : ''}`}
         required={required}
       >
         {placeholder && (
@@ -111,11 +111,6 @@ const Select = ({
         )}
         {children}
       </select>
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50">
-          <path d="M4.18179 6.18181C4.35753 6.00608 4.64245 6.00608 4.81819 6.18181L7.49999 8.86362L10.1818 6.18181C10.3575 6.00608 10.6424 6.00607 10.8182 6.18181C10.9939 6.35755 10.9939 6.64247 10.8182 6.81821L7.81819 9.81821C7.73379 9.9026 7.61934 9.95001 7.49999 9.95001C7.38064 9.95001 7.26618 9.9026 7.18179 9.81821L4.18179 6.81821C4.00605 6.64247 4.00605 6.35755 4.18179 6.18181Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
-        </svg>
-      </div>
     </div>
   );
 };
@@ -201,10 +196,13 @@ export default function TasksPage() {
   const [filters, setFilters] = useState({
     search: '',
     isActive: 'true',
+    property: '',
+    cleaner: '',
   });
   
   const [properties, setProperties] = useState<Property[]>([]);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
+  const [cleaners, setCleaners] = useState<Record<string, {name: string, email: string}>>({});
   const [customers, setCustomers] = useState<Record<string, {name: string, email: string}>>({});
   const [newTask, setNewTask] = useState<CreateTaskRequest>({
     propertyId: '',
@@ -265,12 +263,24 @@ export default function TasksPage() {
         const userTasks = tasksData.filter((t: Task) => propertyIds.includes(t.propertyId));
         setTasks(userTasks);
   
-        // Map user names
+        // Map user names (for backward compatibility)
         const namesMap: Record<string, string> = {};
-        usersData.forEach((u: User) => {
+        usersData.forEach((u: any) => {
           namesMap[u._id] = u.name;
         });
         setUserNames(namesMap);
+
+        // Map cleaners with name and email
+        const cleanersMap: Record<string, {name: string, email: string}> = {};
+        usersData.forEach((u: any) => {
+          if (u.role === 'cleaner') {
+            cleanersMap[u._id] = {
+              name: u.name,
+              email: u.email
+            };
+          }
+        });
+        setCleaners(cleanersMap);
   
 
   
@@ -509,17 +519,36 @@ export default function TasksPage() {
     }
   };
 
-  // Filter tasks based on search and ensure property exists
-  const filteredTasks = tasks.filter(task => {
-    const property = properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId);
-    // Skip tasks with unknown properties
-    if (!property) return false;
-    
-    const matchesSearch = task.propertyId.toLowerCase().includes(filters.search.toLowerCase()) ||
-      task.specialRequirement?.toLowerCase().includes(filters.search.toLowerCase());
-    
-    return matchesSearch;
-  });
+  // Filter tasks based on search, property, cleaner, and status using useMemo
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      const property = properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId);
+      // Skip tasks with unknown properties
+      if (!property) return false;
+      
+      // Search filter - search across all fields
+      const searchTerm = filters.search.toLowerCase();
+      const matchesSearch = !searchTerm || 
+        property.name.toLowerCase().includes(searchTerm) ||
+        property.propertyId.toLowerCase().includes(searchTerm) ||
+        task.specialRequirement?.toLowerCase().includes(searchTerm) ||
+        (task.assignedTo && cleaners[task.assignedTo as string]?.name)?.toLowerCase().includes(searchTerm) ||
+        task._id.toLowerCase().includes(searchTerm);
+      
+      // Property filter
+      const matchesProperty = !filters.property || property._id === filters.property;
+      
+      // Cleaner filter
+      const matchesCleaner = !filters.cleaner || task.assignedTo === filters.cleaner;
+      
+      // Status filter
+      const matchesStatus = filters.isActive === 'all' || 
+        (filters.isActive === 'true' && task.isActive) ||
+        (filters.isActive === 'false' && !task.isActive);
+      
+      return matchesSearch && matchesProperty && matchesCleaner && matchesStatus;
+    });
+  }, [tasks, properties, filters, userNames]);
 
   return (
     <DashboardLayout>
@@ -536,26 +565,92 @@ export default function TasksPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search tasks..."
-            className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          />
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            {/* Search Input */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search tasks..."
+                className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              />
+            </div>
+
+            {/* Property Filter */}
+            <div className="flex-shrink-0">
+              <Select 
+                value={filters.property} 
+                onValueChange={(value) => setFilters({ ...filters, property: value })}
+                className="w-[180px]"
+                placeholder="Property"
+              >
+                <SelectItem value="">All Properties</SelectItem>
+                {properties.map(property => (
+                  <SelectItem key={property._id} value={property._id}>
+                    {property.name}
+                  </SelectItem>
+                ))}
+              </Select>
+            </div>
+
+            {/* Cleaner Filter */}
+            <div className="flex-shrink-0">
+              <Select 
+                value={filters.cleaner} 
+                onValueChange={(value) => setFilters({ ...filters, cleaner: value })}
+                className="w-[200px]"
+                placeholder="Cleaner"
+              >
+                <SelectItem value="">All Cleaners</SelectItem>
+                {Object.entries(cleaners).map(([id, cleaner]) => (
+                  <SelectItem key={id} value={id}>
+                    {cleaner.name}
+                  </SelectItem>
+                ))}
+              </Select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex-shrink-0">
+              <Select 
+                value={filters.isActive} 
+                onValueChange={(value) => setFilters({ ...filters, isActive: value })}
+                className="w-[180px]"
+                placeholder="Status"
+              >
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="true">Active</SelectItem>
+                <SelectItem value="false">Inactive</SelectItem>
+              </Select>
+            </div>
+          </div>
+
+          {/* Clear Filters Button */}
+          {(filters.search || filters.property || filters.cleaner || filters.isActive !== 'true') && (
+            <button
+              onClick={() => setFilters({ search: '', isActive: 'true', property: '', cleaner: '' })}
+              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+            >
+              Clear All Filters
+            </button>
+          )}
         </div>
-        <Select 
-          value={filters.isActive} 
-          onValueChange={(value) => setFilters({ ...filters, isActive: value })}
-          className="w-[180px]"
-          placeholder="Status"
-        >
-          <SelectItem value="all">All Status</SelectItem>
-          <SelectItem value="true">Active</SelectItem>
-          <SelectItem value="false">Inactive</SelectItem>
-        </Select>
+
+        {/* Filter Status */}
+        {(filters.search || filters.property || filters.cleaner || filters.isActive !== 'true') && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Showing {filteredTasks.length} of {tasks.length} tasks
+              {filters.search && ` matching "${filters.search}"`}
+              {filters.property && ` for selected property`}
+              {filters.cleaner && ` assigned to selected cleaner`}
+              {filters.isActive !== 'true' && ` with selected status`}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Tasks Grid */}

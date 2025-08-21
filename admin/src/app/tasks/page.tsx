@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, forwardRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, forwardRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { taskAPI, type Task, type CreateTaskRequest as BaseCreateTaskRequest, type UpdateTaskRequest, userAPI, propertyAPI, type Property } from '@/services/api';
 
 // Extend the CreateTaskRequest type to include propertyInfo
@@ -101,7 +101,7 @@ const Select = ({
       <select
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
-        className={`block w-full rounded-md border border-gray-200 dark:border-gray-600 py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${!value ? 'text-gray-400 dark:text-gray-500' : ''}`}
+        className={`block w-full rounded-md border border-gray-200 dark:border-gray-600 py-2 pl-3 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${!value ? 'text-gray-400 dark:text-gray-500' : ''}`}
         required={required}
       >
         {placeholder && (
@@ -111,11 +111,6 @@ const Select = ({
         )}
         {children}
       </select>
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50">
-          <path d="M4.18179 6.18181C4.35753 6.00608 4.64245 6.00608 4.81819 6.18181L7.49999 8.86362L10.1818 6.18181C10.3575 6.00608 10.6424 6.00607 10.8182 6.18181C10.9939 6.35755 10.9939 6.64247 10.8182 6.81821L7.81819 9.81821C7.73379 9.9026 7.61934 9.95001 7.49999 9.95001C7.38064 9.95001 7.26618 9.9026 7.18179 9.81821L4.18179 6.81821C4.00605 6.64247 4.00605 6.35755 4.18179 6.18181Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
-        </svg>
-      </div>
     </div>
   );
 };
@@ -167,8 +162,9 @@ const SelectPlaceholder = ({ children, ...props }: { children: React.ReactNode }
   </div>
 );
 
-export default function TasksPage() {
+function TasksPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -178,6 +174,9 @@ export default function TasksPage() {
   const [filters, setFilters] = useState({
     search: '',
     isActive: 'true',
+    property: '',
+    customer: '',
+    cleaner: '',
   });
   
   const [cleaners, setCleaners] = useState<Array<{_id: string, name: string, role: string}>>([]);
@@ -302,6 +301,21 @@ export default function TasksPage() {
       clearTimeout(timeoutId);
     };
   }, [filters.isActive]); // Only include filters.isActive as a dependency
+
+  // Handle URL parameters for cleaner filtering
+  useEffect(() => {
+    const cleanerParam = searchParams.get('cleaner');
+    if (cleanerParam && cleaners.length > 0) {
+      // Check if the cleaner exists in our cleaners list
+      const cleanerExists = cleaners.find(c => c._id === cleanerParam);
+      if (cleanerExists) {
+        setFilters(prev => ({
+          ...prev,
+          cleaner: cleanerParam
+        }));
+      }
+    }
+  }, [searchParams, cleaners]);
 
   // Handle create task
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -488,12 +502,42 @@ export default function TasksPage() {
     }
   };
 
-  // Filter tasks based on search
+  // Filter tasks based on all filters
   const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.propertyId.toLowerCase().includes(filters.search.toLowerCase()) ||
-      task.specialRequirement?.toLowerCase().includes(filters.search.toLowerCase());
-    
-    return matchesSearch;
+    const property = properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId);
+    const customerId = typeof property?.customer === 'string' ? property.customer : property?.customer?._id;
+    const customerInfo = customerId ? customers[customerId] : null;
+    const cleanerName = task.assignedTo ? 
+      (typeof task.assignedTo === 'string' ? userNames[task.assignedTo] : task.assignedTo.name) : 
+      'Unassigned';
+
+    // Filter by search (across all fields)
+    const searchLower = filters.search.toLowerCase();
+    const matchesSearch = !filters.search || 
+      task.propertyId.toLowerCase().includes(searchLower) ||
+      task.specialRequirement?.toLowerCase().includes(searchLower) ||
+      property?.name.toLowerCase().includes(searchLower) ||
+      property?.propertyId.toLowerCase().includes(searchLower) ||
+      customerInfo?.name.toLowerCase().includes(searchLower) ||
+      customerInfo?.email.toLowerCase().includes(searchLower) ||
+      cleanerName.toLowerCase().includes(searchLower);
+
+    // Filter by property
+    const matchesProperty = !filters.property || 
+      property?.propertyId === filters.property;
+
+    // Filter by customer
+    const matchesCustomer = !filters.customer || 
+      customerId === filters.customer;
+
+    // Filter by cleaner
+    const matchesCleaner = !filters.cleaner || 
+      (task.assignedTo ? 
+        (typeof task.assignedTo === 'string' ? task.assignedTo === filters.cleaner : task.assignedTo._id === filters.cleaner) : 
+        filters.cleaner === 'unassigned'
+      );
+
+    return matchesSearch && matchesProperty && matchesCustomer && matchesCleaner;
   });
 
   return (
@@ -512,26 +556,109 @@ export default function TasksPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search tasks..."
-            className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          />
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 mb-6">
+        {/* Search Row */}
+        <div className="mb-6">
+          <div className="relative max-w-2xl">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search tasks, properties, customers, cleaners..."
+              className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            />
+          </div>
         </div>
-        <Select 
-          value={filters.isActive} 
-          onValueChange={(value) => setFilters({ ...filters, isActive: value })}
-          className="w-[180px]"
-          placeholder="Status"
-        >
-          <SelectItem value="all">All Status</SelectItem>
-          <SelectItem value="true">Active</SelectItem>
-          <SelectItem value="false">Inactive</SelectItem>
-        </Select>
+
+        {/* Filter Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Property Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Property</label>
+            <Select 
+              value={filters.property} 
+              onValueChange={(value) => setFilters({ ...filters, property: value })}
+              className="w-full"
+            >
+              <SelectItem value="">All Properties</SelectItem>
+              {properties.map(property => (
+                <SelectItem key={property._id} value={property.propertyId}>
+                  {property.name} ({property.propertyId})
+                </SelectItem>
+              ))}
+            </Select>
+          </div>
+
+          {/* Customer Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Customer</label>
+            <Select 
+              value={filters.customer} 
+              onValueChange={(value) => setFilters({ ...filters, customer: value })}
+              className="w-full"
+            >
+              <SelectItem value="">All Customers</SelectItem>
+              {Object.entries(customers).map(([customerId, customer]) => (
+                <SelectItem key={customerId} value={customerId}>
+                  {customer.name}
+                </SelectItem>
+              ))}
+            </Select>
+          </div>
+
+          {/* Cleaner Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cleaner</label>
+            <Select 
+              value={filters.cleaner} 
+              onValueChange={(value) => setFilters({ ...filters, cleaner: value })}
+              className="w-full"
+            >
+              <SelectItem value="">All Cleaners</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {cleaners.map(cleaner => (
+                <SelectItem key={cleaner._id} value={cleaner._id}>
+                  {cleaner.name}
+                </SelectItem>
+              ))}
+            </Select>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+            <Select 
+              value={filters.isActive} 
+              onValueChange={(value) => setFilters({ ...filters, isActive: value })}
+              className="w-full"
+            >
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="true">Active</SelectItem>
+              <SelectItem value="false">Inactive</SelectItem>
+            </Select>
+          </div>
+        </div>
+
+        {/* Action Row */}
+        {(filters.search || filters.property || filters.customer || filters.cleaner || filters.isActive !== 'all') && (
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Showing {filteredTasks.length} of {tasks.length} tasks
+            </div>
+            <button
+              onClick={() => setFilters({
+                search: '',
+                isActive: 'true',
+                property: '',
+                customer: '',
+                cleaner: '',
+              })}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 px-3 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tasks Grid */}
@@ -558,6 +685,16 @@ export default function TasksPage() {
                 }}>
                   {getTaskStatus(task).charAt(0).toUpperCase() + getTaskStatus(task).slice(1)}
                 </div>
+                {!task.assignedTo && (
+                  <div className="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded-md text-xs font-medium" style={{
+                    position: 'absolute',
+                    top: '0.75rem',
+                    right: '1rem',
+                    zIndex: 10
+                  }}>
+                    Unassigned
+                  </div>
+                )}
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg font-medium text-gray-900 dark:text-white">
@@ -589,37 +726,39 @@ export default function TasksPage() {
                     <span>No schedule</span>
                   )}
                 </div>
-                {task.assignedTo && (
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <Building className="h-4 w-4 flex-shrink-0 text-muted-foreground dark:text-gray-400" />
-                      <span className="text-sm text-muted-foreground dark:text-gray-400">
-                        {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.name || 'Unknown Property'} 
-                        ({properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.propertyId || 'N/A'})
-                      </span>
-                    </div>
-                    {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer && (
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <Building className="h-4 w-4 flex-shrink-0 text-muted-foreground dark:text-gray-400" />
+                    <span className="text-sm text-muted-foreground dark:text-gray-400">
+                      {properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.name || 'Unknown Property'} 
+                      ({properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.propertyId || 'N/A'})
+                    </span>
+                  </div>
+                  {(() => {
+                    const property = properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId);
+                    const customerId = typeof property?.customer === 'string' ? property.customer : property?.customer?._id;
+                    const customerInfo = customerId ? customers[customerId] : null;
+                    
+                    return customerInfo && (
                       <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                         <User className="h-4 w-4 mr-2 flex-shrink-0 text-gray-600 dark:text-gray-400" />
                         <span className="truncate">
-                          Customer:{" "}
-                          {customers[properties.find(p => p._id === task.propertyId || p.propertyId === task.propertyId)?.customer || '']?.name || 
-                            'Unknown Customer'}
+                          Customer: {customerInfo.name}
                         </span>
                       </div>
-                    )}
-                    <div className="flex items-center text-sm text-muted-foreground dark:text-gray-400">
-                      <User className="h-4 w-4 mr-2 flex-shrink-0" />
-                      <span className="truncate">
-                        {task.assignedTo ? 
-                          `Assigned to: ${typeof task.assignedTo === 'string' ? 
-                            (userNames[task.assignedTo] || task.assignedTo) : 
-                            task.assignedTo.name}` 
-                          : 'Unassigned'}
-                      </span>
-                    </div>
+                    );
+                  })()}
+                  <div className="flex items-center text-sm text-muted-foreground dark:text-gray-400">
+                    <User className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">
+                      {task.assignedTo ? 
+                        `Assigned to: ${typeof task.assignedTo === 'string' ? 
+                          (userNames[task.assignedTo] || task.assignedTo) : 
+                          task.assignedTo.name}` 
+                        : 'Unassigned'}
+                    </span>
                   </div>
-                )}
+                </div>
               </CardContent>
               <CardFooter className="bg-muted/50 dark:bg-gray-700/50 p-4 border-t border-gray-200 dark:border-gray-700 pt-5">
                 <div className="flex justify-end w-full items-center">
@@ -773,5 +912,21 @@ export default function TasksPage() {
       </div>
     </DashboardLayout>
   </ProtectedRoute>
+  );
+}
+
+// Main component with Suspense wrapper
+export default function TasksPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading tasks...</p>
+        </div>
+      </div>
+    }>
+      <TasksPageContent />
+    </Suspense>
   );
 }

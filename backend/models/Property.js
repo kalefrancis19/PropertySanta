@@ -55,7 +55,10 @@ const propertySchema = new mongoose.Schema({
 
   roomTasks: [roomTaskSchema],
  
-  customer: String,
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
 
   cycle:String,
 

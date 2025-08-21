@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { 
   Plus, 
   Edit, 
@@ -19,12 +20,30 @@ import DashboardLayout from '@/components/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 
-export default function PropertiesPage() {
+function PropertiesPageContent() {
+  const searchParams = useSearchParams();
   const [properties, setProperties] = useState<Property[]>([]);
+  const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [customers, setCustomers] = useState<Array<{_id: string, name: string, email: string}>>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [selectedCustomerFilter, setSelectedCustomerFilter] = useState<string>('');
+
+  // Function to get customer info from either string ID or populated object
+  const getCustomerInfo = (property: Property) => {
+    if (!property.customer) return null;
+    
+    if (typeof property.customer === 'object' && property.customer.name) {
+      return property.customer;
+    }
+    
+    if (typeof property.customer === 'string') {
+      return customers.find(customer => customer._id === property.customer);
+    }
+    
+    return null;
+  };
 
   const [showManualModal, setShowManualModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null); // Still needed for manual edit modal
@@ -34,6 +53,27 @@ export default function PropertiesPage() {
     fetchProperties();
     fetchCustomers();
   }, []);
+
+  // Handle URL parameters for customer filtering
+  useEffect(() => {
+    const customerParam = searchParams.get('customer');
+    if (customerParam && customers.length > 0) {
+      // Check if the customer exists in our customers list
+      const customerExists = customers.find(c => c._id === customerParam);
+      if (customerExists) {
+        setSelectedCustomerFilter(customerParam);
+        filterPropertiesByCustomer(customerParam);
+      }
+    }
+  }, [searchParams, customers]);
+
+  // Re-apply filter when both properties and customers are loaded
+  useEffect(() => {
+    if (selectedCustomerFilter && customers.length > 0 && properties.length > 0) {
+      console.log('Re-applying filter with all data loaded');
+      filterPropertiesByCustomer(selectedCustomerFilter);
+    }
+  }, [customers, properties, selectedCustomerFilter]);
 
   const fetchCustomers = async () => {
     try {
@@ -54,12 +94,42 @@ export default function PropertiesPage() {
       setLoading(true);
       const data = await propertyAPI.getAll();
       setProperties(data);
+      setFilteredProperties(data);
     } catch (error) {
       console.error('Error fetching properties:', error);
       toast.error('Failed to fetch properties');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Filter properties by customer
+  const filterPropertiesByCustomer = (customerId: string) => {
+    setSelectedCustomerFilter(customerId);
+    
+    if (!customerId) {
+      setFilteredProperties(properties);
+      return;
+    }
+    
+    // Make sure we have both properties and customers data
+    if (properties.length === 0 || customers.length === 0) {
+      console.log('Data not ready yet, skipping filter');
+      return;
+    }
+    
+    console.log('Filtering for customer ID:', customerId);
+    console.log('Available customers:', customers);
+    console.log('Available properties:', properties);
+    
+    const filtered = properties.filter(property => {
+      const customerInfo = getCustomerInfo(property);
+      console.log('Property:', property.name, 'Customer info:', customerInfo);
+      return customerInfo && customerInfo._id === customerId;
+    });
+    
+    console.log('Filtered properties:', filtered);
+    setFilteredProperties(filtered);
   };
 
   const handleAddProperty = async (propertyData: CreatePropertyRequest) => {
@@ -212,9 +282,52 @@ export default function PropertiesPage() {
           </button>
         </div>
 
+        {/* Filter Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 lg:space-x-6">
+            {/* Filter Controls */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-6">
+              <div className="flex items-center space-x-3">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                  Filter by Customer:
+                </label>
+                <select
+                  value={selectedCustomerFilter}
+                  onChange={(e) => filterPropertiesByCustomer(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 min-w-[200px]"
+                >
+                  <option value="">All Customers</option>
+                  {customers.map((customer) => (
+                    <option key={customer._id} value={customer._id}>
+                      {customer.name} ({customer.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Action and Status */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+              {selectedCustomerFilter && (
+                <button
+                  onClick={() => filterPropertiesByCustomer('')}
+                  className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 px-3 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                >
+                  Clear Filter
+                </button>
+              )}
+              {selectedCustomerFilter && (
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing {filteredProperties.length} of {properties.length} properties
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Properties Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {properties.map((property) => (
+          {filteredProperties.map((property) => (
             <div key={property._id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
@@ -228,6 +341,21 @@ export default function PropertiesPage() {
                     <MapPin className="h-3.5 w-3.5 mr-1" />
                     {property.address}
                   </p>
+                  {(() => {
+                    const customerInfo = getCustomerInfo(property);
+                    return customerInfo && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Customer</p>
+                        <div className="flex items-center text-sm font-medium text-gray-900 dark:text-white">
+                          <User className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
+                          <span>{customerInfo.name}</span>
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 ml-6">
+                          {customerInfo.email}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -289,18 +417,24 @@ export default function PropertiesPage() {
           ))}
         </div>
 
-        {properties.length === 0 && (
+        {filteredProperties.length === 0 && (
           <div className="text-center py-12">
             <Home className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No properties found</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">Get started by adding your first property</p>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Add Property</span>
-            </button>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {selectedCustomerFilter ? 'No properties found for selected customer' : 'No properties found'}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              {selectedCustomerFilter ? 'Try selecting a different customer or clear the filter' : 'Get started by adding your first property'}
+            </p>
+            {!selectedCustomerFilter && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Add Property</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -540,4 +674,20 @@ function ManualEditModal({ manual, onClose, onSave, onChange }: {
       </div>
     </div>
   );
-} 
+}
+
+// Main component with Suspense wrapper
+export default function PropertiesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading properties...</p>
+        </div>
+      </div>
+    }>
+      <PropertiesPageContent />
+    </Suspense>
+  );
+}

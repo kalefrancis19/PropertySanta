@@ -16,7 +16,8 @@ import {
     Square,
     Building,
     X,
-    User as UserIcon
+    User as UserIcon,
+    Search
   } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 
@@ -33,8 +34,11 @@ interface UserFormData {
 export default function UsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('');
+  const [searchFilter, setSearchFilter] = useState<string>('');
   const [formData, setFormData] = useState<UserFormData>({
     name: '',
     email: '',
@@ -49,11 +53,55 @@ export default function UsersPage() {
     try {
       const data = await userAPI.getAll();
       setUsers(data);
+      setFilteredUsers(sortUsersByRole([...data]));
     } catch (error) {
       toast.error('Failed to load users');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Sort users by role (admin, customer, cleaner)
+  const sortUsersByRole = (userList: User[]) => {
+    const roleOrder = { admin: 1, customer: 2, cleaner: 3 };
+    return userList.sort((a, b) => {
+      return (roleOrder[a.role as keyof typeof roleOrder] || 0) - (roleOrder[b.role as keyof typeof roleOrder] || 0);
+    });
+  };
+
+  // Filter users by role and search
+  const filterUsers = (role: string, search: string) => {
+    setSelectedRoleFilter(role);
+    setSearchFilter(search);
+    
+    let filtered = users;
+    
+    // Filter by role
+    if (role) {
+      filtered = filtered.filter(user => user.role === role);
+    }
+    
+    // Filter by search
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(user => 
+        user.name.toLowerCase().includes(searchLower) ||
+        user.email.toLowerCase().includes(searchLower) ||
+        user.phone?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    setFilteredUsers(sortUsersByRole(filtered));
+  };
+
+  // Filter users by role
+  const filterUsersByRole = (role: string) => {
+    filterUsers(role, searchFilter);
+  };
+
+  // Filter users by search
+  const filterUsersBySearch = (search: string) => {
+    filterUsers(selectedRoleFilter, search);
   };
 
   useEffect(() => {
@@ -191,6 +239,24 @@ export default function UsersPage() {
     }
   };
 
+  // Handle user row click for navigation
+  const handleUserClick = (user: User, event: React.MouseEvent) => {
+    // Don't navigate if clicking on action buttons
+    const target = event.target as HTMLElement;
+    if (target.closest('button') || target.closest('span[onClick]')) {
+      return;
+    }
+
+    if (user.role === 'customer') {
+      // Navigate to properties page with customer filter
+      router.push(`/properties?customer=${user._id}`);
+    } else if (user.role === 'cleaner') {
+      // Navigate to tasks page with cleaner filter
+      router.push(`/tasks?cleaner=${user._id}`);
+    }
+    // Admin users don't navigate anywhere
+  };
+
   return (
     <ProtectedRoute>
       <DashboardLayout>
@@ -218,6 +284,51 @@ export default function UsersPage() {
           <Plus className="h-4 w-4" />
           <span>Add New User</span>
         </button>
+        </div>
+
+        {/* Filter Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-end space-x-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search users by name, email, or phone..."
+                value={searchFilter}
+                onChange={(e) => filterUsersBySearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Filter by Role:
+            </label>
+            <select
+              value={selectedRoleFilter}
+              onChange={(e) => filterUsersByRole(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="cleaner">Cleaner</option>
+              <option value="customer">Customer</option>
+            </select>
+            {(selectedRoleFilter || searchFilter) && (
+              <button
+                onClick={() => {
+                  filterUsersByRole('');
+                  filterUsersBySearch('');
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+          {(selectedRoleFilter || searchFilter) && (
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-400 text-right">
+              Showing {filteredUsers.length} of {users.length} users
+            </div>
+          )}
         </div>
 
       <Dialog.Root open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -364,20 +475,23 @@ export default function UsersPage() {
                     </div>
                   </td>
                 </tr>
-              ) : users.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <tr className="bg-white dark:bg-gray-800">
                   <td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <UserIcon className="h-8 w-8 text-gray-400" />
-                      <p>No users found</p>
+                      <p>{selectedRoleFilter ? 'No users found for selected role' : 'No users found'}</p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                users.map((user) => (
+                filteredUsers.map((user) => (
                   <tr 
                     key={user._id} 
-                    className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+                    className={`bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150 ${
+                      user.role === 'customer' || user.role === 'cleaner' ? 'cursor-pointer' : ''
+                    }`}
+                    onClick={(e) => handleUserClick(user, e)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
