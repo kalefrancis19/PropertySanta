@@ -420,13 +420,6 @@ export default function TasksPage() {
               <span className="text-xs font-medium">Tasks</span>
             </button>
             <button 
-              onClick={() => router.push('/reports')}
-              className="flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 text-gray-400 hover:text-blue-500"
-            >
-              <FileText className="w-6 h-6" />
-              <span className="text-xs font-medium">Reports</span>
-            </button>
-            <button 
               onClick={() => handleTabChange('profile')}
               className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 ${
                 activeTab === 'profile' 

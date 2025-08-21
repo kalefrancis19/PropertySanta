@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Home, 
   List, 
@@ -34,9 +34,11 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [propertyDetails, setPropertyDetails] = useState<{[key: string]: any}>({});
   const [expandedUpcomingProperties, setExpandedUpcomingProperties] = useState<Set<string>>(new Set());
   const [currentProperties, setCurrentProperties] = useState<any[]>([]);
   const [expandedCurrentProperties, setExpandedCurrentProperties] = useState<Set<string>>(new Set());
+  const loadedProperties = useRef<Set<string>>(new Set());
   const router = useRouter();
   const { authState } = useAuth();
   
@@ -74,113 +76,150 @@ export default function DashboardPage() {
 
   // Load tasks from backend
   useEffect(() => {
+    let isMounted = true;
+    
     const loadTasks = async () => {
+      if (!authState.isAuthenticated || !authState.user) return;
+      
       try {
-        console.log('Loading tasks...');
-        // Filter tasks by the current logged-in cleaner
+        setLoading(true);
+        setError('');
+        
+        // Add cleanerId to the request to filter tasks assigned to this cleaner
         const response = await apiService.getTasks({
-          assignedTo: authState.user?._id
+          assignedTo: authState.user._id
         });
-        console.log('Tasks response:', response);
-        if (response.success) {
-          const allTasks = response.data || [];
-          setTasks(allTasks);
-
-          const grouped = groupTasksByProperty(allTasks);
-          console.log('Grouped tasks:', JSON.parse(JSON.stringify(grouped)));
-          
-          const currentPropertyEntries = Object.values(grouped).filter(group => {
-            console.log('\n--- Checking property:', group.property.name, '---');
-            // Get all room tasks across all tasks in this property
-            const allRoomTasks = group.tasks.flatMap(t => t.roomTasks || []);
-            
-            // A room is considered completed only if it has isCompleted: true
-            const completedRooms = allRoomTasks.filter(rt => rt.isCompleted === true).length;
-            const totalRooms = allRoomTasks.length;
-            const progressPercentage = totalRooms > 0 ? Math.round((completedRooms / totalRooms) * 100) : 0;
-            
-            // Log the status for debugging
-            console.log(`Property has ${completedRooms} completed rooms out of ${totalRooms} (${progressPercentage}%)`);
-            
-            // Only show properties that are in progress (not 0% and not 100%)
-            const shouldShow = progressPercentage > 0 && progressPercentage < 100;
-            
-            if (shouldShow) {
-              console.log(`Showing property '${group.property.name}' - ${progressPercentage}% complete`);
-            } else if (progressPercentage === 0) {
-              console.log(`Hiding property '${group.property.name}' - not started (0% complete)`);
-            } else {
-              console.log(`Hiding property '${group.property.name}' - completed (100%)`);
-            }
-            
-            return shouldShow;
-          });
-
-          console.log('Current properties to show:', currentPropertyEntries.map(p => p.property.name));
-          setCurrentProperties(currentPropertyEntries);
-
-          console.log('Tasks loaded:', allTasks);
+        
+        if (!isMounted) return;
+        
+        if (response?.success) {
+          setTasks(response.data || []);
         } else {
-          setError(response.message || 'Failed to load tasks');
+          setError(response?.message || 'Failed to load tasks');
         }
       } catch (error) {
         console.error('Error loading tasks:', error);
-        setError('Failed to load tasks');
+        if (isMounted) {
+          setError('Failed to load tasks. Please try again.');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadTasks();
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
+  }, [authState.isAuthenticated, authState.user?._id]);
+
+  // Fetch property details for each task
+  useEffect(() => {
+    if (!tasks.length) return;
+
+    const propertyIds = Array.from(new Set(tasks.map(task => task.propertyId).filter(Boolean)));
+    const propertyIdsToFetch = propertyIds.filter(id => !loadedProperties.current.has(id));
+    if (propertyIdsToFetch.length === 0) return;
+
+    propertyIdsToFetch.forEach(id => loadedProperties.current.add(id));
+    let isMounted = true;
+
+    const fetchPropertyDetails = async () => {
+      try {
+        const fetchPromises = propertyIdsToFetch.map(propertyId =>
+          apiService.getPropertyDetails(propertyId)
+            .then(response => ({
+              id: propertyId,
+              response,
+              success: response?.success || false
+            }))
+            .catch(error => {
+              console.error(`Error fetching property ${propertyId}:`, error);
+              return { id: propertyId, response: null, success: false };
+            })
+        );
+
+        const results = await Promise.all(fetchPromises);
+
+        if (!isMounted) return;
+
+        // Save property objects into global state
+        setPropertyDetails(prev => {
+          const updated = { ...prev };
+          results.forEach(r => {
+            if (r.success && r.response?.property) {
+              updated[r.id] = r.response.property; // store property object
+            }
+          });
+          return updated;
+        });
+
+      } catch (error) {
+        console.error('Error in property details fetch:', error);
       }
     };
 
-    // Only load tasks if user is authenticated
-    if (authState.isAuthenticated && authState.user) {
-      loadTasks();
+    fetchPropertyDetails();
+    return () => {
+      isMounted = false;
+    };
+  }, [tasks]);
+
+  // Update current properties when property details are loaded
+  useEffect(() => {
+    if (tasks.length > 0 && Object.keys(propertyDetails).length > 0) {
+      const grouped = groupTasksByProperty(tasks);
+      
+      const currentPropertyEntries = Object.values(grouped).filter(group => {
+        // Get all room tasks across all tasks in this property
+        const allRoomTasks = group.tasks.flatMap(t => t.roomTasks || []);
+        
+        // A room is considered completed only if it has isCompleted: true
+        const completedRooms = allRoomTasks.filter(rt => rt.isCompleted === true).length;
+        const totalRooms = allRoomTasks.length;
+        const progressPercentage = totalRooms > 0 ? Math.round((completedRooms / totalRooms) * 100) : 0;
+        
+        // Only show properties that are in progress (not 0% and not 100%)
+        const shouldShow = progressPercentage > 0 && progressPercentage < 100;
+        
+        return shouldShow;
+      });
+
+      setCurrentProperties(currentPropertyEntries);
     }
-  }, [authState.isAuthenticated, authState.user]);
+  }, [tasks, propertyDetails]);
 
   // Group tasks by property with property details
   const groupTasksByProperty = (tasks: any[]) => {
     const grouped: { [key: string]: { property: any; tasks: any[] } } = {};
     
     tasks.forEach(task => {
-      // Use task properties as the primary source of truth
-      const propertyKey = task.property?._id || task.property?.id || task.propertyId || 'unknown';
+      // Use propertyId as the key since that's what we have in the task
+      const propertyKey = task.propertyId || 'unknown';
       
       if (!grouped[propertyKey]) {
-        // Create a new property entry using task data
+        // Use the property data from propertyDetails state
+        const property = propertyDetails[propertyKey];
         grouped[propertyKey] = {
           property: {
             id: propertyKey,
-            // Get name from task.manual.name first, then property, then task address
-            name: task.manual?.name || 
-                 task.property?.name || 
-                 task.address || 
-                 'Unknown Property',
-            address: task.address || task.property?.address || 'Address not available',
-            // Use task type first, then property type, default to 'house'
-            type: (task.type || task.property?.type || 'Not sure').toLowerCase(),
-            squareFootage: task.squareFootage || task.property?.squareFootage || 0,
-            instructions: task.property?.manual?.content || '',
-            // Use roomTasks from task first, then from property
-            roomTasks: task.roomTasks || task.property?.roomTasks || []
+            name: property?.name || 'Unknown Property',
+            address: property?.address || 'Address not available',
+            type: (property?.type || 'house').toLowerCase(),
+            squareFootage: property?.squareFootage || 0,
+            instructions: property?.manual?.content || '',
+            roomTasks: property?.roomTasks || []
           },
           tasks: []
         };
-        
-        console.log('Created property entry:', {
-          id: propertyKey,
-          name: grouped[propertyKey].property.name,
-          type: grouped[propertyKey].property.type,
-          roomTasks: grouped[propertyKey].property.roomTasks.length
-        });
       }
       
       // Add the task to this property
       grouped[propertyKey].tasks.push(task);
-      
-      // If this task has roomTasks and the property doesn't have any yet, use these
-      if (task.roomTasks?.length > 0 && (!grouped[propertyKey].property.roomTasks || grouped[propertyKey].property.roomTasks.length === 0)) {
-        grouped[propertyKey].property.roomTasks = task.roomTasks;
-      }
     });
     
     return grouped;
@@ -215,6 +254,22 @@ export default function DashboardPage() {
     }
   };
 
+  // Check if we're still loading tasks or if we have tasks with pending property details
+  const arePropertiesLoading = loading || 
+    (tasks.length > 0 && tasks.some(task => 
+      task.propertyId && !propertyDetails[task.propertyId]
+    ));
+
+  const getTaskStats = (requirements: any[]) => {
+    const totalTasks = requirements.length;
+    const completedTasks = requirements.filter(requirement => requirement.isCompleted === true).length;
+    return {
+      total: totalTasks,
+      completed: completedTasks,
+      completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+    };
+  };
+
   const getPropertyTypeColor = (type: string) => {
     switch (type) {
       case 'apartment': return 'text-blue-500';
@@ -239,31 +294,36 @@ export default function DashboardPage() {
     const upcomingTasks = tasks.filter(task => {
       if (!task.scheduledTime) return false;
       const scheduledTime = new Date(task.scheduledTime);
-      return scheduledTime >= now && scheduledTime <= tomorrow;
+      
+      // Check if task is in the next 24 hours
+      const isUpcoming = scheduledTime >= now && scheduledTime <= tomorrow;
+      
+      // Check if task is not completed (using same logic as task page)
+      const stats = getTaskStats(task.requirements || []);
+      const isNotCompleted = stats.completed !== stats.total || stats.total === 0;
+      
+      return isUpcoming && isNotCompleted;
     });
 
     // Group by property
     const groupedByProperty: { [key: string]: { property: any; tasks: any[] } } = {};
     
     upcomingTasks.forEach(task => {
-      // Use task properties as the primary source of truth
-      const propertyKey = task.property?._id || task.property?.id || task.propertyId || 'unknown';
+      // Use propertyId as the key since that's what we have in the task
+      const propertyKey = task.propertyId || 'unknown';
       
       if (!groupedByProperty[propertyKey]) {
-        // Create a new property entry using task data
+        // Use the property data from propertyDetails state
+        const property = propertyDetails[propertyKey];
         groupedByProperty[propertyKey] = {
           property: {
             id: propertyKey,
-            // Get name from task.manual.name first, then property, then task address
-            name: task.manual?.name || 
-                 task.property?.name || 
-                 task.address || 
-                 'Unknown Property',
-            address: task.address || task.property?.address || 'Address not available',
-            // Use task type first, then property type, default to 'house'
-            type: (task.type || task.property?.type || 'Not sure').toLowerCase(),
-            squareFootage: task.squareFootage || task.property?.squareFootage || 0,
-            instructions: task.property?.manual?.content || ''
+            name: property?.name || 'Unknown Property',
+            address: property?.address || 'Address not available',
+            type: (property?.type || 'house').toLowerCase(),
+            squareFootage: property?.squareFootage || 0,
+            instructions: property?.manual?.content || '',
+            roomTasks: property?.roomTasks || []
           },
           tasks: []
         };
@@ -420,6 +480,15 @@ export default function DashboardPage() {
             </div>
           </div>
           {(() => {
+            if (arePropertiesLoading) {
+              return (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-600 dark:text-gray-300 text-sm mt-2">Loading upcoming cleanings...</p>
+                </div>
+              );
+            }
+            
             const upcomingCleaningsByProperty = getUpcomingCleaningsByProperty(tasks);
             return upcomingCleaningsByProperty.length > 0 ? (
               <div className="space-y-4">
@@ -433,10 +502,19 @@ export default function DashboardPage() {
                     <div key={propertyKey} className="bg-white rounded-xl p-4 border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] animate-slide-up">
                       <div 
                         className="flex items-center justify-between mb-3 cursor-pointer hover:bg-gray-50 rounded-lg p-3 transition-all duration-300"
+                        onClick={() => {
+                          const newExpanded = new Set(expandedUpcomingProperties);
+                          if (newExpanded.has(propertyKey)) {
+                            newExpanded.delete(propertyKey);
+                          } else {
+                            newExpanded.add(propertyKey);
+                          }
+                          setExpandedUpcomingProperties(newExpanded);
+                        }}
                       >
                         <div className="flex-1">
                           <h2 className="font-bold text-blue-900 text-lg">
-                            {property.name}
+                            Task #{propertyTasks[0]?._id?.slice(-6).toUpperCase() || 'Unknown'}
                           </h2>
                           <p className="text-xs text-gray-600 flex items-center mt-1">
                             <MapPin className="w-3 h-3 mr-1 text-blue-500" />
@@ -473,17 +551,33 @@ export default function DashboardPage() {
                         <div className="space-y-3 animate-slide-down">
                           {propertyTasks.map((task, index) => {
                             const scheduledTime = new Date(task.scheduledTime);
+                            // Calculate task status using the same logic as task page
+                            const stats = getTaskStats(task.requirements || []);
+                            let status = 'pending';
+                            if (stats.total > 0) {
+                              if (stats.completed === stats.total) {
+                                status = 'completed';
+                              } else if (stats.completed > 0) {
+                                status = 'in_progress';
+                              }
+                            }
+                            
                             return (
                               <div key={task._id || task.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-[1.01]" style={{ animationDelay: `${index * 100}ms` }}>
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex-1">
                                     <h6 className="font-semibold text-gray-900 text-sm">
-                                      {task.title}
+                                      Task #{task._id?.slice(-6).toUpperCase()}
                                     </h6>
+                                    {task.specialRequirement && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {task.specialRequirement}
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="text-right">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${getPriorityColor(task.priority)}`}>
-                                      {task.priority}
+                                    <span className="px-3 py-1 rounded-full text-xs font-bold shadow-sm text-blue-500">
+                                      {stats.total} rooms
                                     </span>
                                   </div>
                                 </div>
@@ -491,17 +585,38 @@ export default function DashboardPage() {
                                   <div className="flex items-center space-x-4">
                                     <div className="flex items-center space-x-1 bg-gray-100 px-2 py-1 rounded-full">
                                       <Clock className="w-3 h-3 text-gray-600" />
-                                      <span className="font-medium">{task.estimatedTime}</span>
+                                      <span className="font-medium">
+                                        {stats.total > 0 ? `${Math.round(stats.total * 30)} min` : 'TBD'}
+                                      </span>
                                     </div>
                                     <div className="flex items-center space-x-1 bg-gray-100 px-2 py-1 rounded-full">
                                       <Calendar className="w-3 h-3 text-gray-600" />
                                       <span className="font-medium">{scheduledTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                     </div>
                                   </div>
-                                  <span className={`px-3 py-1 rounded-full text-xs font-medium shadow-sm ${getStatusColor(task.status)}`}>
-                                    {task.status.replace('_', ' ')}
+                                  <span className={`px-3 py-1 rounded-full text-xs font-medium shadow-sm ${getStatusColor(status)}`}>
+                                    {status.replace('_', ' ')}
                                   </span>
                                 </div>
+                                {task.requirements && task.requirements.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <p className="text-xs text-gray-500 mb-2">Rooms to clean:</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {task.requirements.map((req, reqIndex) => (
+                                        <span 
+                                          key={reqIndex}
+                                          className={`px-2 py-1 rounded-full text-xs ${
+                                            req.isCompleted 
+                                              ? 'bg-green-100 text-green-700' 
+                                              : 'bg-gray-100 text-gray-600'
+                                          }`}
+                                        >
+                                          {req.roomType}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -548,17 +663,6 @@ export default function DashboardPage() {
             <List className="w-6 h-6" />
             <span className="text-xs font-medium">Tasks</span>
           </button>
-          {/* <button 
-            onClick={() => handleTabChange('chat')}
-            className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 ${
-              activeTab === 'chat' 
-                ? 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' 
-                : 'text-gray-400 hover:text-blue-500'
-            }`}
-          >
-            <MessageCircle className="w-6 h-6" />
-            <span className="text-xs font-medium">Chat</span>
-          </button> */}
           <button 
             onClick={() => handleTabChange('profile')}
             className={`flex flex-col items-center space-y-1 p-2 rounded-2xl transition-all duration-200 ${
