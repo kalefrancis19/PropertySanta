@@ -158,7 +158,7 @@ const initializeDatabase = async () => {
       cleaner = new User({
         name: 'elite cleaner',
         email: 'elite@gmail.com',
-        password: 'password',
+        password: '1qaz!QAZ',
         phone: '+1 (555) 123-4567',
         role: 'cleaner',
         rating: 4.8,
@@ -173,7 +173,7 @@ const initializeDatabase = async () => {
       customer = new User({
         name: 'John Smith',
         email: 'john.smith@email.com',
-        password: 'password',
+        password: '1qaz!QAZ',
         phone: '+1 (555) 987-6543',
         role: 'customer'
       });
@@ -184,7 +184,7 @@ const initializeDatabase = async () => {
     if (!existingAdmin) {
       admin = new User({
         name: 'PropertySanta Admin',
-        email: 'admin@propertysanta.com',
+        email: 'admin@gmail.com',
         password: 'admin123',
         phone: '+1 (555) 000-0000',
         role: 'admin'

@@ -1,13 +1,14 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Property = require('../models/Property');
 const Task = require('../models/Task');
+require('dotenv').config({ path: '../config.env' });
 
 class GeminiService {
   constructor() {
-    const API_KEY ='AIzaSyDRUvyiwRgV4q86sRAei8U50Pc9UgZTzcM';
-    // if (!API_KEY) {
-    //   throw new Error('GEMINI_API_KEY environment variable is required');
-    // }
+    const API_KEY = process.env.GEMINI_API_KEY;
+    if (!API_KEY) {
+      throw new Error('GEMINI_API_KEY environment variable is required');
+    }
     this.genAI = new GoogleGenerativeAI(API_KEY);
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     this.useEnhancedMockData = false;
@@ -269,11 +270,8 @@ class GeminiService {
       
       const context = this.getContext(taskId);
       const { workflowState, beforePhotosLogged, afterPhotosLogged, currentProperty } = context;
-      console.log('Current context:-------------------------', context.currentProperty?._id)
       // Use intelligent text analysis to extract room type and photo type
-      const textAnalysis = this.analyzeTextForPhotoInfo(userMessage);
-      console.log('📝 Text analysis result:', textAnalysis);
-      
+      const textAnalysis = this.analyzeTextForPhotoInfo(userMessage);      
       // Use detected values if they have high confidence, otherwise fall back to provided parameters
       const detectedRoomType = textAnalysis.roomConfidence > 0.7 ? textAnalysis.roomType : roomType;
       const detectedPhotoType = textAnalysis.photoConfidence > 0.7 ? textAnalysis.photoType : photoType;
